@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Object Storage Scanner - PearlGuard</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+        .s3-section {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .s3-config {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .s3-config h3 {
+            margin-top: 0;
+            color: #856404;
+            font-size: 1rem;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .form-group {
+            margin-bottom: 0.75rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+
+        .s3-panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .s3-panel {
+            background: #f8fafc;
+            border-radius: 4px;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+        }
+
+        .s3-panel h3 {
+            margin-top: 0;
+            font-size: 1rem;
+            color: #1e293b;
+        }
+
+        .s3-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background: white;
+        }
+
+        .s3-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .s3-item:hover {
+            background: #f1f5f9;
+        }
+
+        .s3-item.selected {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+        }
+
+        .s3-item:last-child {
+            border-bottom: none;
+        }
+
+        .s3-item-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .s3-item-meta {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+
+        .s3-breadcrumb {
+            padding: 0.5rem;
+            background: #f5f5f5;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            color: #666;
+        }
+
+        .s3-breadcrumb-item {
+            color: #2196F3;
+            cursor: pointer;
+        }
+
+        .s3-breadcrumb-item:hover {
+            text-decoration: underline;
+        }
+
+        .s3-scan-result {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+
+        .s3-scan-result.clean {
+            border-left: 4px solid #4CAF50;
+        }
+
+        .s3-scan-result.malware {
+            border-left: 4px solid #f44336;
+        }
+
+        .folder-icon::before {
+            content: "📁 ";
+        }
+
+        .file-icon::before {
+            content: "📄 ";
+        }
+
+        .s3-empty {
+            padding: 2rem;
+            text-align: center;
+            color: #666;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="nav-container"></div>
+    
+    <div class="container">
+        <div class="s3-section">
+            <h2>☁️ Object Storage Scanner</h2>
+            <p style="color: #64748b; margin-bottom: 1rem;">Scan files in AWS S3 buckets without downloading them</p>
+            
+            <div class="s3-config">
+                <h3>AWS Configuration</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="awsRegion">AWS Region</label>
+                        <select id="awsRegion">
+                            <option value="us-east-1">US East (N. Virginia)</option>
+                            <option value="us-east-2">US East (Ohio)</option>
+                            <option value="us-west-1">US West (N. California)</option>
+                            <option value="us-west-2" selected>US West (Oregon)</option>
+                            <option value="eu-west-1">EU (Ireland)</option>
+                            <option value="eu-central-1">EU (Frankfurt)</option>
+                            <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
+                            <option value="ap-northeast-1">Asia Pacific (Tokyo)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="awsAccessKey">Access Key ID (optional)</label>
+                        <input type="password" id="awsAccessKey" placeholder="Leave empty to use IAM role">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="awsSecretKey">Secret Access Key (optional)</label>
+                    <input type="password" id="awsSecretKey" placeholder="Leave empty to use IAM role">
+                </div>
+                <button onclick="loadBuckets()" class="primary-button">Connect & Load Buckets</button>
+            </div>
+
+            <div class="s3-panels">
+                <div class="s3-panel">
+                    <h3>S3 Buckets</h3>
+                    <div id="bucketList" class="s3-list">
+                        <div class="s3-empty">Configure AWS and click "Connect"</div>
+                    </div>
+                </div>
+
+                <div class="s3-panel">
+                    <h3>Objects</h3>
+                    <div class="s3-breadcrumb" id="breadcrumb">
+                        <span>Select a bucket to browse</span>
+                    </div>
+                    <div id="objectList" class="s3-list">
+                        <div class="s3-empty">Select a bucket from the left</div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                        <button id="selectAllBtn" onclick="selectAllObjects()" class="secondary-button" disabled style="flex: 1;">Select All</button>
+                        <button id="scanBtn" onclick="scanSelectedObjects()" class="primary-button" disabled style="flex: 2;">Scan Selected (0)</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="scanResult" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Load navigation
+        fetch('/components/nav.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('nav-container').innerHTML = data;
+                const username = localStorage.getItem('username');
+                if (username) {
+                    document.getElementById('userInfo').textContent = username;
+                }
+            });
+
+        // Check authentication
+        const username = localStorage.getItem('username');
+        const password = localStorage.getItem('password');
+        if (!username || !password) {
+            window.location.href = '/login.html';
+        }
+        let selectedBucket = null;
+        let selectedObjects = [];
+        let currentPrefix = '';
+        let currentObjects = [];
+
+        // Load saved AWS credentials from session storage
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedRegion = sessionStorage.getItem('awsRegion');
+            const savedAccessKey = sessionStorage.getItem('awsAccessKey');
+            const savedSecretKey = sessionStorage.getItem('awsSecretKey');
+            
+            if (savedRegion) document.getElementById('awsRegion').value = savedRegion;
+            if (savedAccessKey) document.getElementById('awsAccessKey').value = savedAccessKey;
+            if (savedSecretKey) document.getElementById('awsSecretKey').value = savedSecretKey;
+        });
+
+        async function loadBuckets() {
+            const region = document.getElementById('awsRegion').value;
+            const awsAccessKey = document.getElementById('awsAccessKey').value;
+            const awsSecretKey = document.getElementById('awsSecretKey').value;
+
+            // Save credentials to session storage
+            sessionStorage.setItem('awsRegion', region);
+            sessionStorage.setItem('awsAccessKey', awsAccessKey);
+            sessionStorage.setItem('awsSecretKey', awsSecretKey);
+
+            const bucketList = document.getElementById('bucketList');
+            bucketList.innerHTML = '<p style="padding: 20px; text-align: center;">Loading buckets...</p>';
+
+            try {
+                const response = await fetch('/api/s3/buckets', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Basic ' + btoa(username + ':' + password)
+                    },
+                    body: JSON.stringify({
+                        region,
+                        awsAccessKey,
+                        awsSecretKey
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                const data = await response.json();
+                displayBuckets(data.buckets);
+            } catch (error) {
+                bucketList.innerHTML = `<p style="padding: 20px; color: red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        function displayBuckets(buckets) {
+            const bucketList = document.getElementById('bucketList');
+            
+            if (!buckets || buckets.length === 0) {
+                bucketList.innerHTML = '<div class="s3-empty">No buckets found</div>';
+                return;
+            }
+
+            bucketList.innerHTML = buckets.map(bucket => `
+                <div class="s3-item folder-icon" onclick="selectBucket('${bucket.name}')" oncontextmenu="event.preventDefault(); selectEntireBucket('${bucket.name}'); return false;">
+                    <div style="flex: 1;">
+                        <div class="s3-item-name">${bucket.name}</div>
+                        <div class="s3-item-meta">Created: ${new Date(bucket.creationDate).toLocaleDateString()}</div>
+                    </div>
+                    <button onclick="event.stopPropagation(); selectEntireBucket('${bucket.name}')" class="secondary-button" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;" title="Select all objects in bucket">Select All</button>
+                </div>
+            `).join('');
+        }
+
+        async function selectBucket(bucketName) {
+            selectedBucket = bucketName;
+            currentPrefix = '';
+            selectedObjects = []; // Clear selections when switching buckets
+            
+            // Highlight selected bucket
+            document.querySelectorAll('#bucketList .s3-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            event.target.closest('.s3-item').classList.add('selected');
+
+            await loadObjects(bucketName, '');
+        }
+
+        async function loadObjects(bucket, prefix) {
+            selectedObjects = []; // Clear selections when navigating folders
+            const region = document.getElementById('awsRegion').value;
+            const awsAccessKey = document.getElementById('awsAccessKey').value;
+            const awsSecretKey = document.getElementById('awsSecretKey').value;
+
+            const objectList = document.getElementById('objectList');
+            objectList.innerHTML = '<div class="s3-empty">Loading objects...</div>';
+
+            updateBreadcrumb(bucket, prefix);
+
+            try {
+                const response = await fetch('/api/s3/objects', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Basic ' + btoa(username + ':' + password)
+                    },
+                    body: JSON.stringify({
+                        region,
+                        bucket,
+                        prefix,
+                        awsAccessKey,
+                        awsSecretKey
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                const data = await response.json();
+                displayObjects(data.objects, bucket, prefix);
+            } catch (error) {
+                objectList.innerHTML = `<div class="s3-empty" style="color: red;">Error: ${error.message}</div>`;
+            }
+        }
+
+        function updateBreadcrumb(bucket, prefix) {
+            const breadcrumb = document.getElementById('breadcrumb');
+            const parts = prefix ? prefix.split('/').filter(p => p) : [];
+            
+            let html = `<span class="s3-breadcrumb-item" onclick="loadObjects('${bucket}', '')">${bucket}</span>`;
+            
+            let path = '';
+            parts.forEach((part, index) => {
+                path += part + '/';
+                html += ` / <span class="s3-breadcrumb-item" onclick="loadObjects('${bucket}', '${path}')">${part}</span>`;
+            });
+            
+            breadcrumb.innerHTML = html;
+        }
+
+        function displayObjects(objects, bucket, prefix) {
+            const objectList = document.getElementById('objectList');
+            
+            if (!objects || objects.length === 0) {
+                objectList.innerHTML = '<div class="s3-empty">No objects found</div>';
+                document.getElementById('selectAllBtn').disabled = true;
+                return;
+            }
+
+            // Separate folders and files
+            const folders = new Set();
+            const files = [];
+
+            objects.forEach(obj => {
+                const key = obj.key;
+                const relativePath = prefix ? key.substring(prefix.length) : key;
+                
+                const slashIndex = relativePath.indexOf('/');
+                if (slashIndex > 0) {
+                    // It's a folder
+                    folders.add(relativePath.substring(0, slashIndex));
+                } else if (relativePath) {
+                    // It's a file
+                    files.push(obj);
+                }
+            });
+
+            // Store current files for select all functionality
+            currentObjects = files;
+
+            let html = '';
+
+            // Display folders first
+            folders.forEach(folder => {
+                html += `
+                    <div class="s3-item folder-icon" onclick="loadObjects('${bucket}', '${prefix}${folder}/')">
+                        <div style="flex: 1;">
+                            <div class="s3-item-name">${folder}/</div>
+                        </div>
+                        <button onclick="event.stopPropagation(); selectEntireFolder('${bucket}', '${prefix}${folder}/')" class="secondary-button" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;" title="Select all files in folder">Select All</button>
+                    </div>
+                `;
+            });
+
+            // Display files with checkboxes for multi-select
+            files.forEach(file => {
+                const fileName = prefix ? file.key.substring(prefix.length) : file.key;
+                const isSelected = selectedObjects.some(obj => obj.key === file.key);
+                html += `
+                    <div class="s3-item file-icon ${isSelected ? 'selected' : ''}" onclick="toggleObjectSelection(event, '${file.key}', ${file.size})">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
+                            <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleObjectSelection(event, '${file.key}', ${file.size})">
+                            <div style="flex: 1;">
+                                <div class="s3-item-name">${fileName}</div>
+                                <div class="s3-item-meta">
+                                    ${formatFileSize(file.size)} • ${new Date(file.lastModified).toLocaleString()}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            objectList.innerHTML = html || '<div class="s3-empty">No objects found</div>';
+            document.getElementById('selectAllBtn').disabled = files.length === 0;
+        }
+
+        function toggleObjectSelection(event, key, size) {
+            const item = event.target.closest('.s3-item');
+            const checkbox = item.querySelector('input[type="checkbox"]');
+            
+            const objIndex = selectedObjects.findIndex(obj => obj.key === key);
+            
+            if (objIndex >= 0) {
+                // Deselect
+                selectedObjects.splice(objIndex, 1);
+                item.classList.remove('selected');
+                if (checkbox) checkbox.checked = false;
+            } else {
+                // Select
+                selectedObjects.push({ key, size });
+                item.classList.add('selected');
+                if (checkbox) checkbox.checked = true;
+            }
+            
+            updateScanButton();
+        }
+
+        function selectAllObjects() {
+            selectedObjects = [...currentObjects];
+            
+            // Update UI
+            document.querySelectorAll('#objectList .s3-item.file-icon').forEach((item, index) => {
+                item.classList.add('selected');
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                if (checkbox) checkbox.checked = true;
+            });
+            
+            updateScanButton();
+        }
+
+        function updateScanButton() {
+            const scanBtn = document.getElementById('scanBtn');
+            const count = selectedObjects.length;
+            
+            scanBtn.disabled = count === 0;
+            scanBtn.textContent = `Scan Selected (${count})`;
+        }
+
+        async function selectEntireBucket(bucketName) {
+            const confirmMsg = `Select all objects in bucket "${bucketName}"? This will fetch all objects recursively.`;
+            if (!confirm(confirmMsg)) return;
+            
+            selectedBucket = bucketName;
+            const region = document.getElementById('awsRegion').value;
+            const awsAccessKey = document.getElementById('awsAccessKey').value;
+            const awsSecretKey = document.getElementById('awsSecretKey').value;
+            
+            const scanBtn = document.getElementById('scanBtn');
+            const originalText = scanBtn.textContent;
+            scanBtn.innerHTML = 'Fetching objects...<span class="loading"></span>';
+            scanBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/s3/objects', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Basic ' + btoa(username + ':' + password)
+                    },
+                    body: JSON.stringify({ region, bucket: bucketName, prefix: '', awsAccessKey, awsSecretKey, recursive: true })
+                });
+                
+                if (!response.ok) throw new Error(await response.text());
+                
+                const data = await response.json();
+                const allFiles = data.objects.filter(obj => !obj.key.endsWith('/'));
+                
+                selectedObjects = allFiles.map(obj => ({ key: obj.key, size: obj.size }));
+                
+                // Navigate to bucket to show selection
+                await selectBucket(bucketName);
+                
+                alert(`Selected ${selectedObjects.length} objects from bucket "${bucketName}"`);
+            } catch (error) {
+                alert(`Failed to select bucket: ${error.message}`);
+            } finally {
+                scanBtn.textContent = originalText;
+                scanBtn.disabled = selectedObjects.length === 0;
+            }
+        }
+
+        async function selectEntireFolder(bucket, prefix) {
+            const confirmMsg = `Select all objects in folder "${prefix}"?`;
+            if (!confirm(confirmMsg)) return;
+            
+            const region = document.getElementById('awsRegion').value;
+            const awsAccessKey = document.getElementById('awsAccessKey').value;
+            const awsSecretKey = document.getElementById('awsSecretKey').value;
+            
+            const scanBtn = document.getElementById('scanBtn');
+            const originalText = scanBtn.textContent;
+            scanBtn.innerHTML = 'Fetching objects...<span class="loading"></span>';
+            scanBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/s3/objects', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Basic ' + btoa(username + ':' + password)
+                    },
+                    body: JSON.stringify({ region, bucket, prefix, awsAccessKey, awsSecretKey, recursive: true })
+                });
+                
+                if (!response.ok) throw new Error(await response.text());
+                
+                const data = await response.json();
+                const allFiles = data.objects.filter(obj => !obj.key.endsWith('/'));
+                
+                selectedObjects = allFiles.map(obj => ({ key: obj.key, size: obj.size }));
+                
+                // Navigate to folder to show selection
+                await loadObjects(bucket, prefix);
+                
+                alert(`Selected ${selectedObjects.length} objects from folder`);
+            } catch (error) {
+                alert(`Failed to select folder: ${error.message}`);
+            } finally {
+                scanBtn.textContent = originalText;
+                scanBtn.disabled = selectedObjects.length === 0;
+            }
+        }
+
+        async function scanSelectedObjects() {
+            if (!selectedBucket || selectedObjects.length === 0) {
+                alert('Please select at least one object to scan');
+                return;
+            }
+
+            const region = document.getElementById('awsRegion').value;
+            const awsAccessKey = document.getElementById('awsAccessKey').value;
+            const awsSecretKey = document.getElementById('awsSecretKey').value;
+
+            const scanBtn = document.getElementById('scanBtn');
+            const originalText = scanBtn.textContent;
+            scanBtn.disabled = true;
+
+            const resultDiv = document.getElementById('scanResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `<p>Scanning ${selectedObjects.length} object(s), please wait...</p>`;
+
+            let results = [];
+            let scanned = 0;
+
+            for (const obj of selectedObjects) {
+                scanBtn.innerHTML = `Scanning ${scanned + 1}/${selectedObjects.length}...<span class="loading"></span>`;
+                
+                try {
+                    const response = await fetch('/api/s3/scan', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Basic ' + btoa(username + ':' + password)
+                        },
+                        body: JSON.stringify({
+                            region,
+                            bucket: selectedBucket,
+                            key: obj.key,
+                            awsAccessKey,
+                            awsSecretKey,
+                            tags: ['source:s3', 'bucket:' + selectedBucket]
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.text();
+                        throw new Error(error);
+                    }
+
+                    const data = await response.json();
+                    results.push({ key: obj.key, data, success: true });
+                } catch (error) {
+                    results.push({ key: obj.key, error: error.message, success: false });
+                }
+                
+                scanned++;
+                resultDiv.innerHTML = `<p>Scanned ${scanned} of ${selectedObjects.length} objects...</p>`;
+            }
+
+            displayMultipleScanResults(results);
+            scanBtn.disabled = false;
+            scanBtn.textContent = originalText;
+        }
+
+        function displayMultipleScanResults(results) {
+            const resultDiv = document.getElementById('scanResult');
+            
+            let html = `<h3>Scan Results (${results.length} objects)</h3>`;
+            
+            results.forEach(result => {
+                if (result.success) {
+                    const scanResult = JSON.parse(result.data.scanResult);
+                    console.log('Scan result for', result.key, ':', scanResult);
+                    
+                    // Determine if the file is clean
+                    let isClean = true;
+                    let malwareList = [];
+                    
+                    // Check for verbose result structure (result.atse.malwareCount)
+                    if (scanResult.result && scanResult.result.atse) {
+                        const malwareCount = scanResult.result.atse.malwareCount || 0;
+                        isClean = malwareCount === 0;
+                        if (scanResult.result.atse.malware && scanResult.result.atse.malware.length > 0) {
+                            malwareList = scanResult.result.atse.malware.map(m => m.name || 'Unknown');
+                        }
+                    }
+                    // Check for standard result structure (scanResult field)
+                    else if (scanResult.scanResult !== undefined) {
+                        isClean = scanResult.scanResult === 0;
+                        if (scanResult.foundMalwares && scanResult.foundMalwares.length > 0) {
+                            malwareList = scanResult.foundMalwares.map(m => m.malwareName);
+                        }
+                    }
+                    // Fallback: check foundMalwares directly
+                    else if (scanResult.foundMalwares && scanResult.foundMalwares.length > 0) {
+                        isClean = false;
+                        malwareList = scanResult.foundMalwares.map(m => m.malwareName);
+                    }
+                    
+                    console.log('isClean =', isClean, 'malwareList =', malwareList);
+                    const className = isClean ? 'clean' : 'malware';
+                    
+                    html += `
+                        <div class="s3-scan-result ${className}" style="margin-bottom: 1rem;">
+                            <h4>${isClean ? '✓ Clean' : '⚠ Malware Detected'}: ${result.key.split('/').pop()}</h4>
+                            <p><strong>Object:</strong> s3://${result.data.bucket}/${result.data.key}</p>
+                            <p><strong>Scan ID:</strong> ${scanResult.scanId || 'N/A'}</p>
+                    `;
+
+                    if (!isClean && malwareList.length > 0) {
+                        html += '<p><strong>Threats:</strong> ';
+                        html += malwareList.join(', ');
+                        html += '</p>';
+                    }
+
+                    html += '</div>';
+                } else {
+                    html += `
+                        <div class="s3-scan-result malware" style="margin-bottom: 1rem;">
+                            <h4>⚠ Scan Failed: ${result.key.split('/').pop()}</h4>
+                            <p><strong>Error:</strong> ${result.error}</p>
+                        </div>
+                    `;
+                }
+            });
+            
+            resultDiv.innerHTML = html;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+    </script>
+</body>
+</html>

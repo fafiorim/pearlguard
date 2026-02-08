@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PearlGuard - Document Upload</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+        .upload-progress {
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .progress-list {
+            margin-top: 1rem;
+        }
+
+        .progress-item {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .progress-item.success {
+            background: #d1fae5;
+        }
+
+        .progress-item.error {
+            background: #fee2e2;
+        }
+
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8fafc;
+        }
+
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: #3498db;
+            background: #f0f9ff;
+        }
+
+        .drop-zone-text {
+            margin-bottom: 1rem;
+            color: #64748b;
+        }
+
+        .selected-files {
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .selected-files-list {
+            margin-top: 0.5rem;
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .selected-file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .selected-file-item:last-child {
+            border-bottom: none;
+        }
+
+        .remove-file {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .remove-file:hover {
+            background: #fee2e2;
+            border-radius: 4px;
+        }
+
+        #uploadButton {
+            margin-top: 1rem;
+        }
+
+        .upload-counter {
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <div id="nav-container"></div>
+
+    <div class="container">
+        <div class="upload-section">
+            <h2>Upload Financial Documents</h2>
+            <form id="uploadForm" class="upload-form">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-text">
+                        Drag and drop files here or click to select files
+                    </div>
+                    <input type="file" id="fileInput" multiple style="display: none">
+                    <button type="button" onclick="document.getElementById('fileInput').click()" class="secondary-button">
+                        Choose Files
+                    </button>
+                </div>
+                
+                <div class="selected-files" id="selectedFiles">
+                    <h3>Selected Files</h3>
+                    <div class="upload-counter" id="uploadCounter"></div>
+                    <div class="selected-files-list" id="selectedFilesList"></div>
+                </div>
+
+                <button type="submit" id="uploadButton">Submit Documents Securely</button>
+                <div id="uploadStatus" class="status-message"></div>
+
+                <div class="upload-progress" id="uploadProgress">
+                    <h3>Upload Progress</h3>
+                    <div class="progress-list" id="progressList"></div>
+                </div>
+            </form>
+        </div>
+
+        <div class="files-section">
+            <h2>Your Files</h2>
+            <div id="fileList" class="file-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const username = localStorage.getItem('username');
+        const password = localStorage.getItem('password');
+
+        if (!username || !password) {
+            window.location.href = '/login';
+        }
+
+        // Setup navigation
+        fetch('/components/nav.html')
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById('nav-container').innerHTML = html;
+                const userInfo = document.getElementById('userInfo');
+                if (userInfo) {
+                    userInfo.textContent = `Logged in as: ${username}`;
+                }
+                document.querySelector('a[href="/dashboard"]')?.classList.add('active');
+            });
+
+        // File selection handling
+        const fileInput = document.getElementById('fileInput');
+        const selectedFiles = document.getElementById('selectedFiles');
+        const selectedFilesList = document.getElementById('selectedFilesList');
+        const uploadCounter = document.getElementById('uploadCounter');
+        const dropZone = document.getElementById('dropZone');
+        let files = new Set();
+
+        function updateFilesList() {
+            selectedFilesList.innerHTML = '';
+            files.forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'selected-file-item';
+                fileItem.innerHTML = `
+                    <span>${file.name}</span>
+                    <button type="button" class="remove-file" onclick="removeFile('${file.name}')">Remove</button>
+                `;
+                selectedFilesList.appendChild(fileItem);
+            });
+
+            uploadCounter.textContent = `${files.size} file${files.size !== 1 ? 's' : ''} selected`;
+            selectedFiles.style.display = files.size > 0 ? 'block' : 'none';
+        }
+
+        function removeFile(fileName) {
+            files = new Set([...files].filter(file => file.name !== fileName));
+            updateFilesList();
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            const newFiles = Array.from(e.target.files);
+            newFiles.forEach(file => files.add(file));
+            updateFilesList();
+        });
+
+        // Drag and drop handling
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const newFiles = Array.from(e.dataTransfer.files);
+            newFiles.forEach(file => files.add(file));
+            updateFilesList();
+        });
+
+        // File upload handling
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const uploadButton = document.getElementById('uploadButton');
+            const progressList = document.getElementById('progressList');
+            const uploadProgress = document.getElementById('uploadProgress');
+
+            if (files.size === 0) {
+                showStatus('Please select files to upload', 'error');
+                return;
+            }
+
+            uploadButton.disabled = true;
+            uploadProgress.style.display = 'block';
+            progressList.innerHTML = '';
+
+            try {
+                for (const file of files) {
+                    const progressItem = document.createElement('div');
+                    progressItem.className = 'progress-item';
+                    progressItem.innerHTML = `
+                        <span>${file.name}</span>
+                        <span>Uploading...</span>
+                    `;
+                    progressList.appendChild(progressItem);
+
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    try {
+                        const response = await fetch('/upload', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Basic ' + btoa(username + ':' + password)
+                            },
+                            body: formData
+                        });
+
+                        const result = await response.json();
+
+                        if (response.ok) {
+                            progressItem.className = 'progress-item success';
+                            progressItem.innerHTML = `
+                                <span>${file.name}</span>
+                                <span>✓ Uploaded successfully</span>
+                            `;
+                        } else {
+                            progressItem.className = 'progress-item error';
+                            progressItem.innerHTML = `
+                                <span>${file.name}</span>
+                                <span>✗ ${result.error || 'Upload failed'}</span>
+                            `;
+                        }
+                    } catch (error) {
+                        progressItem.className = 'progress-item error';
+                        progressItem.innerHTML = `
+                            <span>${file.name}</span>
+                            <span>✗ Upload failed</span>
+                        `;
+                    }
+                }
+
+                // Clear selected files after upload
+                files.clear();
+                updateFilesList();
+                loadFiles();
+
+            } catch (error) {
+                showStatus('Upload failed: ' + error.message, 'error');
+            } finally {
+                uploadButton.disabled = false;
+            }
+        });
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('uploadStatus');
+            statusDiv.textContent = message;
+            statusDiv.className = 'status-message ' + type;
+            setTimeout(() => {
+                statusDiv.className = 'status-message';
+                statusDiv.textContent = '';
+            }, 3000);
+        }
+
+        function formatFileSize(bytes) {
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let size = bytes;
+            let unitIndex = 0;
+            while (size >= 1024 && unitIndex < units.length - 1) {
+                size /= 1024;
+                unitIndex++;
+            }
+            return `${size.toFixed(1)} ${units[unitIndex]}`;
+        }
+
+        // Load and display existing files
+        function loadFiles() {
+            fetch('/files', {
+                headers: {
+                    'Authorization': 'Basic ' + btoa(username + ':' + password)
+                }
+            })
+            .then(response => response.json())
+            .then(files => {
+                const fileList = document.getElementById('fileList');
+                fileList.innerHTML = files.length === 0 ? 
+                    '<div class="no-files">No files uploaded yet</div>' :
+                    files.map(file => `
+                        <div class="file-item">
+                            <div class="file-info">
+                                <span class="file-name">${file.name}</span>
+                                <span class="file-details">
+                                    Size: ${formatFileSize(file.size)} | 
+                                    Uploaded: ${new Date(file.created).toLocaleString()}
+                                </span>
+                            </div>
+                            <div class="file-actions">
+                                <button onclick="deleteFile('${file.name}')" class="delete-btn">Delete</button>
+                            </div>
+                        </div>
+                    `).join('');
+            })
+            .catch(error => {
+                console.error('Error loading files:', error);
+                document.getElementById('fileList').innerHTML = 
+                    '<div class="error-message">Error loading files</div>';
+            });
+        }
+
+        window.deleteFile = function(filename) {
+            if (!confirm(`Are you sure you want to delete ${filename}?`)) return;
+
+            fetch(`/files/${filename}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': 'Basic ' + btoa(username + ':' + password)
+                }
+            })
+            .then(response => response.json())
+            .then(() => loadFiles())
+            .catch(error => console.error('Delete error:', error));
+        }
+
+        window.handleLogout = function() {
+            localStorage.removeItem('username');
+            localStorage.removeItem('password');
+        }
+
+        loadFiles();
+    </script>
+</body>
+</html>

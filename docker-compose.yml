@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  clamav:
+    build: ./clamav
+    container_name: pearlguard-clamav
+    ports:
+      - "3310:3310"
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    restart: unless-stopped
+    networks:
+      - pearlguard-network
+
+  webapp:
+    build: .
+    container_name: pearlguard-webapp
+    ports:
+      - "3000:3000"
+      - "3443:3443"
+    environment:
+      - CLAMAV_HOST=clamav
+      - CLAMAV_PORT=3310
+      - SECURITY_MODE=logOnly
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=admin123
+      - USER_USERNAME=user
+      - USER_PASSWORD=user123
+      - SESSION_SECRET=pearlguard-secret-change-in-production
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      clamav:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - pearlguard-network
+
+volumes:
+  clamav-data:
+
+networks:
+  pearlguard-network:
+    driver: bridge

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PearlGuard - System Status</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div id="nav-container"></div>
+
+    <div class="container">
+        <div class="health-status-section">
+            <h2>System Health Status</h2>
+            <div class="status-cards">
+                <div class="status-card">
+                    <h3>Scanner Status</h3>
+                    <div id="scannerStatus"></div>
+                </div>
+                <div class="status-card">
+                    <h3>Statistics</h3>
+                    <div id="scanStats"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const username = localStorage.getItem('username');
+        const password = localStorage.getItem('password');
+
+        if (!username || !password) {
+            window.location.href = '/login';
+        }
+
+        // Load navigation
+        fetch('/components/nav.html')
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById('nav-container').innerHTML = html;
+                const userInfo = document.getElementById('userInfo');
+                if (userInfo) {
+                    userInfo.textContent = `Logged in as: ${username}`;
+                }
+                document.querySelector('a[href="/health-status"]')?.classList.add('active');
+            });
+
+        function formatDuration(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${hours}h ${minutes}m ${secs}s`;
+        }
+
+        function checkHealth() {
+            fetch('/health', {
+                headers: {
+                    'Authorization': 'Basic ' + btoa(username + ':' + password)
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Determine overall status class
+                let statusClass = 'status-good';
+                if (data.status === 'degraded') {
+                    statusClass = 'status-warning';
+                } else if (data.status !== 'healthy') {
+                    statusClass = 'status-error';
+                }
+                
+                // Update scanner status with service details
+                let statusHTML = `
+                    <div class="status-item ${statusClass}">
+                        <div class="status-indicator"></div>
+                        <div class="status-details">
+                            <span class="status-label">Overall Status: ${data.status}</span>
+                            <span class="status-timestamp">Last check: ${new Date(data.timestamp || Date.now()).toLocaleString()}</span>
+                            <span class="status-uptime">Uptime: ${formatDuration(data.uptime)}</span>
+                        </div>
+                    </div>
+                `;
+                
+                // Add service-specific status if available
+                if (data.services) {
+                    if (data.services.scanner) {
+                        const scannerStatus = data.services.scanner.status;
+                        const scannerClass = scannerStatus === 'healthy' ? 'status-good' : 
+                                           scannerStatus === 'disabled' ? 'status-warning' : 'status-error';
+                        statusHTML += `
+                            <div class="status-item ${scannerClass}" style="margin-top: 10px;">
+                                <div class="status-indicator"></div>
+                                <div class="status-details">
+                                    <span class="status-label">Scanner Service: ${scannerStatus}</span>
+                                    ${data.services.scanner.error ? `<span class="status-error-msg" style="color: #ff4444;">${data.services.scanner.error}</span>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                document.getElementById('scannerStatus').innerHTML = statusHTML;
+
+                // Update scan statistics
+                document.getElementById('scanStats').innerHTML = `
+                    <div class="stats-grid">
+                        <div class="stat-item clickable" onclick="showScannerLogs()" title="Click to view scanner logs">
+                            <span class="stat-value">${data.scanResults.total}</span>
+                            <span class="stat-label">Total Scans 📋</span>
+                        </div>
+                        <div class="stat-item safe">
+                            <span class="stat-value">${data.scanResults.safe}</span>
+                            <span class="stat-label">Safe Files</span>
+                        </div>
+                        <div class="stat-item unsafe">
+                            <span class="stat-value">${data.scanResults.unsafe}</span>
+                            <span class="stat-label">Unsafe Files</span>
+                        </div>
+                    </div>
+                `;
+            })
+            .catch(error => {
+                console.error('Error checking health:', error);
+                document.getElementById('scannerStatus').innerHTML = `
+                    <div class="status-item status-error">
+                        <div class="status-indicator"></div>
+                        <div class="status-details">
+                            <span class="status-label">Error: Service Unavailable</span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Initial check and periodic updates
+        checkHealth();
+        setInterval(checkHealth, 30000);
+
+        window.handleLogout = function() {
+            localStorage.removeItem('username');
+            localStorage.removeItem('password');
+        }
+
+        window.showScannerLogs = function() {
+            const username = localStorage.getItem('username');
+            const password = localStorage.getItem('password');
+            
+            fetch('/api/scanner-logs', {
+                headers: {
+                    'Authorization': 'Basic ' + btoa(username + ':' + password)
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('logsContent').textContent = data.logs || 'No logs available';
+                document.getElementById('logsModal').style.display = 'flex';
+            })
+            .catch(error => {
+                console.error('Error fetching logs:', error);
+                document.getElementById('logsContent').textContent = 'Error loading logs';
+                document.getElementById('logsModal').style.display = 'flex';
+            });
+        }
+
+        window.closeLogsModal = function() {
+            document.getElementById('logsModal').style.display = 'none';
+        }
+    </script>
+
+    <!-- Scanner Logs Modal -->
+    <div id="logsModal" class="modal" onclick="if(event.target === this) closeLogsModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Scanner Logs</h2>
+                <button onclick="closeLogsModal()" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <pre id="logsContent" class="logs-display"></pre>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

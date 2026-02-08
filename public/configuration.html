@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PearlGuard - Security Settings</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+        .config-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-top: 2rem;
+            transition: opacity 0.3s ease;
+        }
+
+        .config-section.disabled {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .config-group {
+            margin-bottom: 2rem;
+        }
+
+        .config-group h3 {
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+
+        .config-option {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .config-option:hover {
+            border-color: var(--accent-color);
+        }
+
+        .config-option.default {
+            border: 2px solid #3498db;
+            background: #f8f9fa;
+        }
+
+        .config-option label {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .config-option.disabled label {
+            cursor: not-allowed;
+        }
+
+        .config-option input[type="radio"] {
+            margin-top: 4px;
+        }
+
+        .config-option-content {
+            flex: 1;
+        }
+
+        .config-title {
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .config-description {
+            font-size: 0.9rem;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .config-tag {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 999px;
+            font-weight: normal;
+        }
+
+        .config-tag.secure {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .config-tag.monitor {
+            background: #fff3cd;
+            color: #664d03;
+        }
+
+        .config-tag.disabled {
+            background: #e5e7eb;
+            color: #4b5563;
+        }
+
+        .config-tag.default {
+            background: #dbeafe;
+            color: #1e40af;
+            margin-left: 0.5rem;
+        }
+
+        .admin-notice {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            border: 1px solid #f5c6cb;
+        }
+
+        .permission-info {
+            background-color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            color: #475569;
+        }
+
+        .button-section {
+            margin-top: 2rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .status-message {
+            display: none;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 1rem;
+        }
+
+        .status-message.success {
+            display: block;
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #34d399;
+        }
+
+        .status-message.error {
+            display: block;
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #f87171;
+        }
+    </style>
+</head>
+<body>
+    <div id="nav-container"></div>
+
+    <div class="container">
+        <div class="config-section" id="configSection">
+            <h2>System Configuration</h2>
+            
+            <div id="adminNotice" class="admin-notice" style="display: none;">
+                Only administrators can modify system configuration. Please contact your administrator for changes.
+            </div>
+
+            <div id="permissionInfo" class="permission-info">
+                Current user role: <span id="userRole">Loading...</span>
+            </div>
+            
+            <div class="config-group">
+                <h3>Security Mode</h3>
+                
+                <div class="config-option" id="disabledOption">
+                    <label>
+                        <input type="radio" name="securityMode" value="disabled">
+                        <div class="config-option-content">
+                            <div class="config-title">
+                                Disabled Mode
+                                <span class="config-tag disabled">Disabled</span>
+                            </div>
+                            <div class="config-description">
+                                No security scanning: Files are uploaded directly without malware scanning.
+                                Use this mode only in trusted environments where scanning is not required.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="config-option">
+                    <label>
+                        <input type="radio" name="securityMode" value="prevent">
+                        <div class="config-option-content">
+                            <div class="config-title">
+                                Prevent Mode
+                                <span class="config-tag secure">Secure</span>
+                            </div>
+                            <div class="config-description">
+                                Maximum security: Automatically blocks and deletes any detected malicious files.
+                                Users will be notified when malware is detected, and files will not be stored.
+                                This is the recommended setting for secure environments.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="config-option">
+                    <label>
+                        <input type="radio" name="securityMode" value="logOnly">
+                        <div class="config-option-content">
+                            <div class="config-title">
+                                Log Only Mode
+                                <span class="config-tag monitor">Monitoring</span>
+                                <span class="config-tag default">Default</span>
+                            </div>
+                            <div class="config-description">
+                                Monitoring mode: Allows all file uploads but logs and marks any detected threats.
+                                Users will be warned about malicious files, but files will still be stored.
+                                This is the default mode, recommended for monitoring and audit purposes.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="config-group">
+                <h3>Scan Method</h3>
+                
+                <div class="config-option" id="bufferOption">
+                    <label>
+                        <input type="radio" name="scanMethod" value="buffer">
+                        <div class="config-option-content">
+                            <div class="config-title">
+                                Buffer Scan
+                                <span class="config-tag default">Default</span>
+                            </div>
+                            <div class="config-description">
+                                Loads the entire file into memory and sends it to the scanning API.
+                                Best for small to medium files (recommended for files under 100MB).
+                                Faster for small files but uses more memory.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="config-option">
+                    <label>
+                        <input type="radio" name="scanMethod" value="file">
+                        <div class="config-option-content">
+                            <div class="config-title">
+                                File Scan
+                                <span class="config-tag secure">Efficient</span>
+                            </div>
+                            <div class="config-description">
+                                Reads the file directly from disk without loading it entirely into memory.
+                                Best for large files (recommended for files over 100MB).
+                                More memory-efficient and reduces network traffic with digest disabled.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="config-group">
+                <h3>Scanner Configuration</h3>
+                
+                <div class="config-option">
+                    <div class="config-option-content">
+                        <div class="config-title">
+                            Scanner Service URL (Internal HTTP Endpoint)
+                        </div>
+                        <div class="config-description" style="margin-bottom: 1rem;">
+                            This is the HTTP endpoint where PearlGuard connects to the local scanner service.
+                            <strong>Keep this as http://localhost:3001 unless you have a separate PearlGuard scanner service.</strong>
+                            The scanner service itself connects to either SaaS SDK or External gRPC scanner based on the configuration below.
+                        </div>
+                        <input type="text" name="scannerUrl" id="scannerUrl" 
+                               placeholder="http://localhost:3001" 
+                               style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 0.9rem;">
+                    </div>
+                </div>
+                
+                <div class="config-option">
+                    <div class="config-option-content">
+                        <div class="config-title">
+                            TrendAI File Security API Key
+                            <span class="config-tag" style="background: #fef3c7; color: #92400e;">Optional</span>
+                        </div>
+                        <div class="config-description" style="margin-bottom: 1rem;">
+                            <strong>Required only when using the SaaS SDK scanner (not external scanner).</strong><br>
+                            Leave empty if using external gRPC scanner. You can also set this via environment variable: FSS_API_KEY
+                        </div>
+                        <input type="password" name="cloudApiKey" id="cloudApiKey" 
+                               placeholder="Enter your TrendAI API key..." 
+                               style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 0.9rem;">
+                        <small style="color: #666; font-size: 0.85rem; display: block; margin-top: 0.5rem;">
+                            🔒 The API key is stored in memory and passed to the scanner process (requires scanner restart to apply)
+                        </small>
+                    </div>
+                </div>
+                
+                <div class="config-option">
+                    <div class="config-option-content">
+                        <div class="config-title">
+                            External gRPC Scanner
+                            <span class="config-tag" style="background: #e0f2fe; color: #075985;">Advanced</span>
+                        </div>
+                        <div class="config-description" style="margin-bottom: 1rem;">
+                            <strong>By default, the local scanner uses TrendAI File Security API.</strong><br>
+                            Enable this option to use an on-premise Vision One File Security gRPC scanner instead (no API key needed).
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; font-weight: 500;">
+                                <input type="checkbox" name="externalScannerEnabled" id="externalScannerEnabled" onchange="toggleExternalScanner()">
+                                <span>Enable External Scanner</span>
+                            </label>
+                        </div>
+                        <div id="externalScannerFields" style="opacity: 0.5; pointer-events: none;">
+                            <div style="margin-bottom: 0.75rem;">
+                                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; font-weight: 500;">Scanner Address</label>
+                                <input type="text" name="externalScannerAddr" id="externalScannerAddr" 
+                                       placeholder="10.10.21.201:50051" 
+                                       style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 0.9rem;">
+                                <small style="color: #666; font-size: 0.85rem;">Format: host:port (requires container restart to apply)</small>
+                            </div>
+                            <div style="margin-bottom: 0.75rem;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem;">
+                                    <input type="checkbox" name="externalScannerTLS" id="externalScannerTLS">
+                                    <span>Use TLS for external scanner connection</span>
+                                </label>
+                            </div>
+                            <div>
+                                <button type="button" id="testScannerBtn" onclick="testScannerConnection()" 
+                                        style="padding: 0.5rem 1rem; background: #0ea5e9; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">
+                                    Test Connection
+                                </button>
+                                <span id="testScannerResult" style="margin-left: 1rem; font-size: 0.9rem;"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="config-group">
+                <h3>Digest Calculation</h3>
+                
+                <div class="config-option">
+                    <label>
+                        <input type="checkbox" name="digestEnabled" id="digestEnabled">
+                        <div class="config-option-content">
+                            <div class="config-title">
+                                Enable File Hash Calculation
+                                <span class="config-tag secure">Recommended</span>
+                            </div>
+                            <div class="config-description">
+                                Calculate SHA-1 and SHA-256 hashes for scanned files.
+                                Provides file integrity verification and security auditing capabilities.
+                                Recommended for compliance and forensic purposes.
+                                Disable only when scanning large remote files to reduce network traffic.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="config-group">
+                <h3>Advanced Scanning Features</h3>
+                <div style="background: #fff3cd; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; border-left: 4px solid #ffc107;">
+                    <strong>⚠️ Note:</strong> These advanced features are only available when using the <strong>SaaS SDK Scanner</strong>. 
+                    They are not supported by the External gRPC Scanner deployment.
+                </div>
+                
+                <div class="config-option">
+                    <label>
+                        <input type="checkbox" name="pmlEnabled" id="pmlEnabled">
+                        <div class="config-option-content">
+                            <div class="config-title">
+                                Enable PML Detection
+                                <span class="config-tag secure">AI-Powered</span>
+                                <span class="config-tag" style="background: #e3f2fd; color: #1565c0;">SaaS Scanner</span>
+                            </div>
+                            <div class="config-description">
+                                Enable Predictive Machine Learning detection for advanced threat identification.
+                                Uses AI to detect obfuscated or polymorphic variants of malware based on behavioral patterns.
+                                Provides enhanced protection against zero-day and unknown threats.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+                
+                <div class="config-option">
+                    <label>
+                        <input type="checkbox" name="spnFeedbackEnabled" id="spnFeedbackEnabled">
+                        <div class="config-option-content">
+                            <div class="config-title">
+                                Enable SPN Feedback
+                                <span class="config-tag" style="background: #e3f2fd; color: #1565c0;">SaaS Scanner</span>
+                            </div>
+                            <div class="config-description">
+                                Enable Smart Protection Network feedback to improve threat intelligence.
+                                Shares scan results with Trend Micro to enhance malware detection capabilities.
+                                Helps protect the global community against emerging threats.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+                
+                <div class="config-option">
+                    <label>
+                        <input type="checkbox" name="verboseEnabled" id="verboseEnabled">
+                        <div class="config-option-content">
+                            <div class="config-title">
+                                Enable Verbose Results
+                                <span class="config-tag" style="background: #e3f2fd; color: #1565c0;">SaaS Scanner</span>
+                            </div>
+                            <div class="config-description">
+                                Enable detailed scan result information with additional metadata.
+                                Provides comprehensive information about scan operations and findings.
+                                Useful for debugging and detailed security analysis.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+                
+                <div class="config-option">
+                    <label>
+                        <input type="checkbox" name="activeContentEnabled" id="activeContentEnabled">
+                        <div class="config-option-content">
+                            <div class="config-title">
+                                Enable Active Content Detection
+                                <span class="config-tag secure">Recommended</span>
+                                <span class="config-tag" style="background: #4caf50; color: white;">All Scanners</span>
+                            </div>
+                            <div class="config-description">
+                                Detect potentially malicious active content in files.
+                                Identifies PDF scripts (embedded JavaScript) and Office macros (VBA code).
+                                Scan results will include type field indicating macro or script detection.
+                                Essential for detecting document-based attacks.
+                                Works with both SaaS Scanner (Cloud API) and External Scanner.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="button-section">
+                <button onclick="saveConfig()" id="saveButton">Save Changes</button>
+                <div id="statusMessage" class="status-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const username = localStorage.getItem('username');
+        const password = localStorage.getItem('password');
+
+        if (!username || !password) {
+            window.location.href = '/login';
+        }
+
+        // Load navigation and check if user is admin
+        fetch('/components/nav.html')
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById('nav-container').innerHTML = html;
+                const userInfo = document.getElementById('userInfo');
+                if (userInfo) {
+                    userInfo.textContent = `Logged in as: ${username}`;
+                }
+                document.querySelector('a[href="/config"]')?.classList.add('active');
+            });
+
+        // Load current configuration and check permissions
+        function loadConfig() {
+            fetch('/api/config', {
+                headers: {
+                    'Authorization': 'Basic ' + btoa(username + ':' + password)
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(config => {
+                // Update user role display
+                document.getElementById('userRole').textContent = config.isAdmin ? 'Administrator' : 'Regular User';
+                
+                // Set current security mode
+                const securityModeInput = document.querySelector(`input[name="securityMode"][value="${config.securityMode}"]`);
+                if (securityModeInput) securityModeInput.checked = true;
+                
+                // Set current scan method
+                const scanMethodInput = document.querySelector(`input[name="scanMethod"][value="${config.scanMethod}"]`);
+                if (scanMethodInput) scanMethodInput.checked = true;
+                
+                // Set scanner URL
+                const scannerUrlInput = document.getElementById('scannerUrl');
+                if (scannerUrlInput) scannerUrlInput.value = config.scannerUrl || 'http://localhost:3001';
+                
+                // Set SaaS SDK API Key (mask it if present)
+                const cloudApiKeyInput = document.getElementById('cloudApiKey');
+                if (cloudApiKeyInput) {
+                    cloudApiKeyInput.value = config.cloudApiKey || '';
+                    if (config.cloudApiKey) {
+                        cloudApiKeyInput.placeholder = '••••••••••••••••';
+                    }
+                }
+                
+                // Set external scanner configuration
+                const hasExternalScanner = config.externalScannerAddr && config.externalScannerAddr.trim() !== '';
+                const externalScannerEnabledInput = document.getElementById('externalScannerEnabled');
+                const externalScannerAddrInput = document.getElementById('externalScannerAddr');
+                const externalScannerTLSInput = document.getElementById('externalScannerTLS');
+                
+                if (externalScannerEnabledInput) externalScannerEnabledInput.checked = hasExternalScanner;
+                if (externalScannerAddrInput) externalScannerAddrInput.value = config.externalScannerAddr || '';
+                if (externalScannerTLSInput) externalScannerTLSInput.checked = config.externalScannerTLS === true;
+                toggleExternalScanner(); // Apply the toggle state
+                
+                // Set digest enabled checkbox
+                const digestEnabledInput = document.getElementById('digestEnabled');
+                if (digestEnabledInput) digestEnabledInput.checked = config.digestEnabled !== false;
+                
+                // Set advanced scanner features
+                const pmlEnabledInput = document.getElementById('pmlEnabled');
+                const spnFeedbackEnabledInput = document.getElementById('spnFeedbackEnabled');
+                const verboseEnabledInput = document.getElementById('verboseEnabled');
+                const activeContentEnabledInput = document.getElementById('activeContentEnabled');
+                
+                if (pmlEnabledInput) pmlEnabledInput.checked = config.pmlEnabled === true;
+                if (spnFeedbackEnabledInput) spnFeedbackEnabledInput.checked = config.spnFeedbackEnabled === true;
+                if (verboseEnabledInput) verboseEnabledInput.checked = config.verboseEnabled === true;
+                if (activeContentEnabledInput) activeContentEnabledInput.checked = config.activeContentEnabled === true;
+
+                // Handle non-admin users
+                if (!config.isAdmin) {
+                    document.getElementById('adminNotice').style.display = 'block';
+                    document.getElementById('configSection').classList.add('disabled');
+                    document.getElementById('saveButton').style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Configuration load error:', error);
+                showStatus('Error loading configuration: ' + error.message, 'error');
+            });
+        }
+
+        // Save configuration
+        function saveConfig() {
+            const saveButton = document.getElementById('saveButton');
+            const securityMode = document.querySelector('input[name="securityMode"]:checked').value;
+            const scanMethod = document.querySelector('input[name="scanMethod"]:checked').value;
+            const scannerUrl = document.getElementById('scannerUrl').value.trim();
+            const cloudApiKey = document.getElementById('cloudApiKey').value.trim();
+            const externalScannerEnabled = document.getElementById('externalScannerEnabled').checked;
+            const externalScannerAddr = externalScannerEnabled ? document.getElementById('externalScannerAddr').value.trim() : '';
+            const externalScannerTLS = externalScannerEnabled ? document.getElementById('externalScannerTLS').checked : false;
+            const digestEnabled = document.getElementById('digestEnabled').checked;
+            const pmlEnabled = document.getElementById('pmlEnabled').checked;
+            const spnFeedbackEnabled = document.getElementById('spnFeedbackEnabled').checked;
+            const verboseEnabled = document.getElementById('verboseEnabled').checked;
+            const activeContentEnabled = document.getElementById('activeContentEnabled').checked;
+            
+            // Validate scanner URL
+            if (!scannerUrl) {
+                showStatus('Scanner URL cannot be empty', 'error');
+                return;
+            }
+            
+            try {
+                new URL(scannerUrl);
+            } catch (e) {
+                showStatus('Invalid scanner URL format. Please use format: http://host:port', 'error');
+                return;
+            }
+            
+            saveButton.disabled = true;
+            
+            fetch('/api/config', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Basic ' + btoa(username + ':' + password),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    securityMode, 
+                    scanMethod,
+                    scannerUrl,
+                    cloudApiKey,
+                    externalScannerAddr,
+                    externalScannerTLS,
+                    digestEnabled, 
+                    pmlEnabled, 
+                    spnFeedbackEnabled, 
+                    verboseEnabled, 
+                    activeContentEnabled 
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Failed to update configuration');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                showStatus('Configuration saved successfully', 'success');
+            })
+            .catch(error => {
+                showStatus(error.message, 'error');
+            })
+            .finally(() => {
+                saveButton.disabled = false;
+            });
+        }
+
+        function toggleExternalScanner() {
+            const enabled = document.getElementById('externalScannerEnabled').checked;
+            const fields = document.getElementById('externalScannerFields');
+            
+            if (enabled) {
+                fields.style.opacity = '1';
+                fields.style.pointerEvents = 'auto';
+            } else {
+                fields.style.opacity = '0.5';
+                fields.style.pointerEvents = 'none';
+                // Clear fields when disabled
+                document.getElementById('externalScannerAddr').value = '';
+                document.getElementById('externalScannerTLS').checked = false;
+                document.getElementById('testScannerResult').innerHTML = '';
+            }
+        }
+
+        function testScannerConnection() {
+            const testButton = document.getElementById('testScannerBtn');
+            const resultSpan = document.getElementById('testScannerResult');
+            const externalScannerAddr = document.getElementById('externalScannerAddr').value.trim();
+            const externalScannerTLS = document.getElementById('externalScannerTLS').checked;
+            
+            if (!externalScannerAddr) {
+                resultSpan.innerHTML = '<span style="color: #f59e0b;">⚠️ Please enter scanner address</span>';
+                return;
+            }
+            
+            // Disable button and show loading state
+            testButton.disabled = true;
+            testButton.textContent = 'Testing...';
+            resultSpan.innerHTML = '<span style="color: #6b7280;">⏳ Connecting...</span>';
+            
+            fetch('/api/test-scanner', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Basic ' + btoa(username + ':' + password),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    externalScannerAddr,
+                    externalScannerTLS
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resultSpan.innerHTML = `<span style="color: #10b981;">✓ ${data.message}</span>`;
+                } else {
+                    resultSpan.innerHTML = `<span style="color: #ef4444;">✗ ${data.message}</span>`;
+                }
+            })
+            .catch(error => {
+                resultSpan.innerHTML = `<span style="color: #ef4444;">✗ Connection failed: ${error.message}</span>`;
+            })
+            .finally(() => {
+                testButton.disabled = false;
+                testButton.textContent = 'Test Connection';
+            });
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message ${type}`;
+            setTimeout(() => {
+                statusDiv.className = 'status-message';
+            }, 3000);
+        }
+
+        window.handleLogout = function() {
+            localStorage.removeItem('username');
+            localStorage.removeItem('password');
+        }
+
+        // Load initial configuration
+        loadConfig();
+    </script>
+</body>
+</html>

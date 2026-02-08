@@ -1,0 +1,14 @@
+const ClamAVScanner = require('./clamav-scanner');
+
+// ClamAV Configuration
+const clamavHost = process.env.CLAMAV_HOST || 'localhost';
+const clamavPort = parseInt(process.env.CLAMAV_PORT) || 3310;
+const clamavScanner = new ClamAVScanner(clamavHost, clamavPort);
+
+// System Configuration
+let systemConfig = {
+    securityMode: process.env.SECURITY_MODE || 'logOnly', // 'prevent', 'logOnly', or 'disabled'
+    scanMethod: process.env.SCAN_METHOD || 'buffer', // 'buffer' or 'file'
+    clamavHost: clamavHost,
+    clamavPort: clamavPort,
+};
