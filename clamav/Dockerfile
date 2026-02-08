@@ -8,11 +8,8 @@ RUN apk add --no-cache clamav clamav-daemon clamav-libunrar
 RUN mkdir -p /var/run/clamav /var/log/clamav /var/lib/clamav && \
     chown -R clamav:clamav /var/run/clamav /var/log/clamav /var/lib/clamav
 
-# Configure ClamAV
-RUN sed -i 's/^#LocalSocket .*/LocalSocket \/var\/run\/clamav\/clamd.sock/' /etc/clamav/clamd.conf && \
-    sed -i 's/^#TCPSocket .*/TCPSocket 3310/' /etc/clamav/clamd.conf && \
-    sed -i 's/^#TCPAddr .*/TCPAddr 0.0.0.0/' /etc/clamav/clamd.conf && \
-    sed -i 's/^#Foreground .*/Foreground yes/' /etc/clamav/clamd.conf
+# Copy custom configuration
+COPY clamd.conf /etc/clamav/clamd.conf
 
 # Update virus database
 RUN freshclam

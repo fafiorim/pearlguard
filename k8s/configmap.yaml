@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pearlguard-config
+  namespace: pearlguard
+data:
+  ADMIN_USERNAME: "admin"
+  ADMIN_PASSWORD: "admin123"
+  USER_USERNAME: "user"
+  USER_PASSWORD: "user123"
+  HTTP_PORT: "3000"
+  HTTPS_PORT: "3443"
+  SECURITY_MODE: "logOnly"
+  SCAN_METHOD: "buffer"
+  CLAMAV_HOST: "clamav-service"
+  CLAMAV_PORT: "3310"

@@ -1,60 +1,71 @@
 # PearlGuard - Financial Services Malware Scanner
 
 [![GitHub](https://img.shields.io/badge/github-fafiorim%2Ffinguard-blue)](https://github.com/fafiorim/pearlguard)
-[![Version](https://img.shields.io/badge/version-1.1.0-green)](https://github.com/fafiorim/pearlguard)
+[![Version](https://img.shields.io/badge/version-1.0.12-green)](https://github.com/fafiorim/pearlguard)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Powered by](https://img.shields.io/badge/powered%20by-TrendAI%20File%20Security-red)](https://www.trendmicro.com)
+[![Powered by](https://img.shields.io/badge/powered%20by-ClamAV-red)](https://www.clamav.net)
 
 **Disclaimer:** This application is designed for demo purposes only. It is not intended for production deployment under any circumstances. Use at your own risk.
 
-PearlGuard is a specialized malware scanner designed for financial institutions, leveraging TrendAI File Security. Built with a focus on compliance and security, it provides comprehensive file scanning capabilities with advanced detection features and detailed audit trails.
+PearlGuard is a specialized malware scanner designed for financial institutions, leveraging ClamAV for open-source virus detection. Built with a focus on compliance and security, it provides comprehensive file scanning capabilities with detailed audit trails and AWS S3 integration.
 
 ## Features
 
 ### Core Capabilities
-- **Dual scanner modes** - Cloud API or on-premise gRPC scanner (Kubernetes Vision One)
-- **Real-time malware scanning** using TrendAI File Security API
+- **ClamAV Integration** - Open-source antivirus scanner with real-time updates
+- **Real-time malware scanning** with comprehensive virus signature database
+- **AWS S3 Integration** - Scan objects directly from S3 buckets
 - **Web interface** for file management and monitoring
 - **RESTful API** with Basic Authentication
-- **Configurable security modes** (Prevent/Log Only/Disabled)
+- **Comprehensive scanner logs** with detailed scan metadata
 - **Enhanced health monitoring** with real-time service validation
 - **Scanner logs viewer** accessible from health status page
 - **Session-based authentication** with role-based access control
-- **Docker containerization** with multi-architecture support
-- **HTTPS support** with self-signed certificates
+- **Kubernetes deployment** with multi-architecture support (AMD64/ARM64)
+- **Docker containerization** with optimized builds
 
-### Advanced Scanner Features (NEW)
-- **PML Detection** - Predictive Machine Learning for zero-day threats
-- **SPN Feedback** - Smart Protection Network threat intelligence sharing
-- **Verbose Results** - Detailed scan metadata with engine versions and timing
-- **Active Content Detection** - Identifies PDF scripts and Office macros
-- **Scan Method Selection** - Buffer (in-memory) or File (disk-based) scanning
-- **File Hash Calculation** - SHA1/SHA256 digests for audit trails
-- **Configuration Tags** - Track scanner settings per scan (ml_enabled, spn_feedback, active_content)
+### S3 Object Storage Scanner (NEW)
+- **Direct S3 Scanning** - Scan files directly from AWS S3 buckets
+- **Bucket Browser** - Navigate and explore S3 buckets and objects
+- **Multi-Object Selection** - Select and scan multiple files simultaneously
+- **Folder Operations** - Select entire folders or buckets for batch scanning
+- **Region Support** - Configurable AWS regions for global deployments
+- **Custom Endpoints** - Support for S3-compatible storage solutions
+- **Detailed Timing** - Performance breakdown (download, buffer, scan)
+- **Scan History** - Track all S3 scans with metadata and results
+
+### Scanner Features
+- **Buffer-based scanning** - In-memory scanning for optimal performance
+- **Detailed scan metadata** - File info, timing, malware details, security context
+- **Comprehensive logging** - 8-section verbose logs with emojis for easy reading
+- **EICAR detection** - Verified malware detection with test files
+- **Virus signature updates** - Automatic ClamAV database updates
+- **Multiple file formats** - Support for all common file types
 
 ### Security & Compliance
-- **Dual scan methods** for flexibility and performance optimization
-- **Detailed audit logging** with configurable tags
-- **File hash tracking** for forensic analysis
-- **Active content detection** for Office/PDF document security
-- **Malware detection** with proper status reporting (fixed EICAR detection bug)
+- **Detailed audit logging** with comprehensive scan metadata
+- **Security context tracking** - Client IP, user agent, authentication details
+- **Malware detection** with proper status reporting and threat identification
+- **File statistics** - Size, MIME type, timestamps for compliance
+- **Scan duration tracking** - Performance monitoring and optimization
 
 ## Directory Structure
 ```
-finguard/
+pearlguard/
 ├── Dockerfile              # Multi-stage container build
-├── docker-compose.yml      # Optional Docker Compose setup
+├── docker-compose.yml      # Docker Compose with ClamAV service
 ├── start.sh               # Container startup script
-├── generate-cert.js       # SSL certificate generator
-├── scanner.go             # Go-based scanner service with TrendAI SDK
-├── server.js              # Express API server
-├── package.json           # Node.js dependencies
-├── go.mod                 # Go module dependencies
-├── go.sum                 # Go dependency checksums
+├── clamav-scanner.js      # ClamAV scanner client library
+├── server.js              # Express API server with S3 integration
+├── package.json           # Node.js dependencies (AWS SDK, Express)
 ├── k8s/                   # Kubernetes deployment manifests
-│   ├── deployment.yaml   # K8s deployment configuration
-│   ├── service.yaml      # LoadBalancer service
+│   ├── namespace.yaml    # PearlGuard namespace
+│   ├── webapp-deployment.yaml   # Webapp deployment (v1.0.12)
+│   ├── clamav-deployment.yaml   # ClamAV service deployment
 │   └── configmap.yaml    # Configuration management
+├── clamav/                # ClamAV custom configuration
+│   ├── Dockerfile        # Custom ClamAV image
+│   └── clamd.conf        # ClamAV daemon configuration
 ├── middleware/            # Application middleware
 │   └── auth.js           # Authentication & authorization
 ├── public/                # Web interface (static files)
@@ -65,228 +76,338 @@ finguard/
 │   ├── dashboard.html    # File upload & management
 │   ├── scan-results.html # Scan history with filtering
 │   ├── health-status.html # System health dashboard
+│   ├── object-storage.html # S3 object storage scanner (NEW)
 │   ├── configuration.html # Scanner configuration (admin)
 │   ├── styles.css        # Application styling
 │   └── script.js         # Client-side JavaScript
-└── samples/               # Sample files for testing
-    ├── README.md         # Sample file documentation
-    ├── safe-file.pdf     # Clean PDF for testing
-    └── file_active_content.pdf # PDF with JavaScript
+└── uploads/               # Temporary upload directory
 ```
 
 ## Quick Start
+
+### Prerequisites
+- Docker and Docker Buildx (for multi-architecture builds)
+- Kubernetes cluster (for K8s deployment)
+- AWS credentials (for S3 scanning feature)
 
 ### Building from Source
 
 ```bash
 # Clone the repository
 git clone https://github.com/fafiorim/pearlguard.git
-cd finguard
+cd pearlguard
 
-# Install Node.js dependencies (if building locally)
+# Install Node.js dependencies
 npm install
 
-# Build the Docker image
-docker build -t finguard:latest .
+# Build multi-architecture Docker images
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t fafiorim/pearlguard-webapp:v1.0.12 --push .
+
+# Build ClamAV service (optional custom build)
+cd clamav
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t fafiorim/pearlguard-clamav:v1.0.2 --push .
 ```
 
-### Running with Cloud Scanner (Default)
+### Running with Docker Compose
 
 ```bash
-# Set your TrendAI File Security API key
-export FSS_API_KEY=your_api_key_here
+# Start both webapp and ClamAV services
+docker-compose up -d
 
-# Run the container
-docker run -d \
-  -p 3000:3000 \
-  -p 3443:3443 \
-  -e FSS_API_KEY=$FSS_API_KEY \
-  -e SECURITY_MODE="logOnly" \
-  --name finguard \
-  finguard:latest
+# Access the application
+open http://localhost:3000
 ```
 
-### Running with External Scanner (Kubernetes Vision One)
+### Kubernetes Deployment
 
 ```bash
-# Run with external gRPC scanner (no API key needed)
-docker run -d \
-  -p 3000:3000 \
-  -p 3443:3443 \
-  -e SCANNER_EXTERNAL_ADDR=10.10.21.201:50051 \
-  -e SCANNER_USE_TLS=false \
-  -e SECURITY_MODE="logOnly" \
-  --name finguard \
-  finguard:latest
-```
+# Apply all Kubernetes manifests
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/clamav-deployment.yaml
+kubectl apply -f k8s/webapp-deployment.yaml
 
-> **Note**: See [EXTERNAL_SCANNER.md](EXTERNAL_SCANNER.md) for detailed external scanner configuration guide.
+# Check deployment status
+kubectl get pods -n pearlguard
+
+# Get service endpoint
+kubectl get svc -n pearlguard
+```
 
 ### Access the Application
 
-- **HTTP**: http://localhost:3000
-- **HTTPS**: https://localhost:3443
+- **HTTP**: http://localhost:3000 (or your LoadBalancer IP)
 - **Health Status**: http://localhost:3000/health-status
-- **Configuration**: http://localhost:3000/configuration
-- **API Endpoints**: http://localhost:3000/api/* (with Basic Auth)
+- **Scanner Logs**: http://localhost:3000/api/scanner-logs
+- **S3 Object Storage**: http://localhost:3000/object-storage.html
+- **Configuration**: http://localhost:3000/configuration (admin only)
 
 ### Default Credentials
 - **Admin**: `admin` / `admin123`
 - **User**: `user` / `user123`
 
+## AWS S3 Integration
+
+PearlGuard includes comprehensive S3 object scanning capabilities.
+
+### S3 Scanner Features
+
+**Direct Object Scanning**
+- Scan files directly from S3 without downloading locally
+- Support for all AWS regions
+- Custom endpoint support for S3-compatible services
+- Secure credential handling with validation
+
+**Bucket Navigation**
+- Browse all accessible S3 buckets
+- Navigate folder structures within buckets
+- View object metadata (size, last modified, ETag)
+- Breadcrumb navigation for easy traversal
+
+**Batch Operations**
+- Select multiple objects for scanning
+- Select entire folders recursively
+- Select entire buckets
+- Progress tracking for multi-object scans
+
+**Performance Optimization**
+- Detailed timing breakdown (download/buffer/scan)
+- In-memory scanning for optimal speed
+- Parallel processing support
+- Network latency monitoring
+
+### Using S3 Scanner
+
+1. Navigate to **Object Storage** page
+2. Enter AWS credentials:
+   - Access Key ID
+   - Secret Access Key
+   - Region (default: us-east-1)
+   - Custom Endpoint (optional)
+3. Click **Connect & Load Buckets**
+4. Browse buckets and select objects
+5. Click **Scan Selected** to start scanning
+
+### S3 Scan Results
+
+Each scan provides:
+- Clean/Malware status
+- Object path (s3://bucket/key)
+- File size
+- Scan ID
+- Duration breakdown
+- Malware names (if detected)
+
+All S3 scans are logged in scan history with `source:s3` tag.
+
 ## Scanner Configuration
 
-PearlGuard provides granular control over scanner behavior through the configuration page (admin access required).
+PearlGuard uses ClamAV for virus detection with comprehensive logging.
 
-### Scanner Modes
+## Scanner Configuration
 
-**Cloud Scanner Mode (Default)**
-- Uses TrendAI File Security API
-- Requires FSS_API_KEY
-- Protocol: HTTP REST API
-- Global threat intelligence network
+PearlGuard uses ClamAV for virus detection with comprehensive logging.
 
-**External Scanner Mode (Optional)**
-- Connects to on-premise Vision One File Security
-- No API key required
-- Protocol: gRPC
-- Example: Kubernetes deployment at 10.10.21.201:50051
-- Configurable via Web UI or environment variables
-- Built-in connection test to verify scanner accessibility
+### ClamAV Scanner
 
-### Scan Methods
+**Official ClamAV Image**
+- Uses official `clamav/clamav:latest` Docker image
+- Automatic virus database updates via freshclam
+- TCP connection on port 3310
+- INSTREAM protocol for buffer scanning
 
-**Buffer Scan (Default)**
-- Loads file into memory
-- Sends data to scanner via network
-- Faster for small files
-- Higher memory usage
+**Detection Features**
+- Comprehensive virus signature database
+- Daily signature updates
+- EICAR test file detection verified
+- All major file format support
 
-**File Scan**
-- Scanner reads directly from disk
-- Lower network overhead
-- Better for large files
-- Requires shared file system access
+### Scanner Logs
 
-### Advanced Detection Features
+PearlGuard provides detailed scanner logs with 8 comprehensive sections:
 
-**PML (Predictive Machine Learning)**
-- AI-powered detection for unknown threats
-- Zero-day malware detection
-- Enhanced by Smart Protection Network data
-- Configurable per-scan via `ml_enabled` tag
+1. **📊 SCAN STATUS** - Overall result, warnings, errors
+2. **📄 FILE INFORMATION** - Name, size, MIME type, scan ID
+3. **🔒 SECURITY CONTEXT** - User, IP, authentication, user agent
+4. **🔍 SCANNER DETAILS** - ClamAV host/port, scan duration
+5. **🦠 MALWARE DETAILS** - Threat names, risk level (if detected)
+6. **🏷️ TAGS** - Tracking tags (source, bucket, region, etc.)
+7. **📅 FILE TIMESTAMPS** - Upload and scan times
+8. **🔬 RAW SCAN DATA** - Full scan response for debugging
 
-**SPN Feedback (Smart Protection Network)**
-- Shares threat intelligence with TrendAI
-- Improves global threat detection
-- Real-time correlation analysis
-- Tracked via `spn_feedback` tag
+### Configuration Options
 
-PearlGuard Results**
-- Detailed scan metadata
-- Engine versions and pattern updates
+**ClamAV Detection Features**
+- Detect Potentially Unwanted Applications (PUA)
+- Alert on Office Macros
+- Alert on Encrypted Files
+- Structured Data Detection (SSN, Credit Cards)
+
+**Log Levels**
+- Verbose logging enabled by default
+- Log clean files option
+- Extended detection information
 - Scan timing and performance metrics
-- File type detection details
-
-**Active Content Detection**
-- Identifies PDF JavaScript
-- Detects Office macros
-- Reports potentially risky embedded code
-- Returns `activeContentCount` in results
-- Tracked via `active_content` tag
-
-**File Hash Calculation**
-- SHA1 and SHA256 digest generation
-- Essential for audit trails and forensics
-- Toggleable to reduce overhead
-- Included in scan results when enabled
-
-### Configuration Tags
-
-Each scan includes tags for audit and compliance:
-```
-app=finguard                    # Application identifier
-file_type=.pdf                  # File extension
-scan_method=buffer              # Scan method used
-ml_enabled=true                 # PML detection status
-spn_feedback=true               # SPN sharing status
-active_content=true             # Active content detection
-malware_name=Eicar_test_file   # Detected threat (if any)
-```
-
-## Sample Files
-
-PearlGuard includes sample files in the `samples/` directory for testing scanner features:
-
-- **safe-file.pdf** - Clean PDF file with no threats
-- **file_active_content.pdf** - PDF with embedded JavaScript for active content detection testing
-- **README.md** - Detailed testing instructions
-
-Upload these samples with different configurations to see how various detection features work.
 
 ## Kubernetes Deployment
 
-PearlGuard includes production-ready Kubernetes manifests in the `k8s/` directory.
+PearlGuard includes production-ready Kubernetes manifests optimized for the pearlguard namespace.
+
+### Architecture
+
+**Webapp Service**
+- Deployment: `pearlguard-webapp`
+- Image: `fafiorim/pearlguard-webapp:v1.0.12`
+- Replicas: 1 (configurable)
+- Port: 3000
+- Multi-architecture: AMD64/ARM64
+
+**ClamAV Service**
+- Deployment: `clamav`
+- Image: `clamav/clamav:latest` (official)
+- Port: 3310
+- Automatic virus DB updates
+
+**LoadBalancer Service**
+- Service: `pearlguard-service`
+- Type: LoadBalancer
+- External Port: 80 → Internal Port: 3000
 
 ### Quick Deploy
 
 ```bash
-# Create secret with your FSS API key
-kubectl create secret generic finguard-secrets \
-  --from-literal=admin-password=your_admin_pass \
-  --from-literal=user-password=your_user_pass \
-  --from-literal=fss-api-key=your_fss_api_key
+# Create namespace
+kubectl apply -f k8s/namespace.yaml
 
 # Deploy ConfigMap
 kubectl apply -f k8s/configmap.yaml
 
-# Deploy application
-kubectl apply -f k8s/deployment.yaml
+# Deploy ClamAV scanner
+kubectl apply -f k8s/clamav-deployment.yaml
 
-# Create LoadBalancer service
-kubectl apply -f k8s/service.yaml
+# Deploy webapp
+kubectl apply -f k8s/webapp-deployment.yaml
 
-# Get external IP
-kubectl get svc finguard-service
+# Get service endpoint
+kubectl get svc pearlguard-service -n pearlguard
+# Example output: EXTERNAL-IP: 10.10.21.202
 ```
 
 ### Kubernetes Resources
 
-- **Deployment**: `k8s/deployment.yaml` - Application deployment with health checks
-- **Service**: `k8s/service.yaml` - LoadBalancer service exposing port 3000
-- **ConfigMap**: `k8s/configmap.yaml` - Application configuration
-- **Secret**: `k8s/secret.yaml` - Template for sensitive data
+- **namespace.yaml** - PearlGuard namespace isolation
+- **webapp-deployment.yaml** - Webapp deployment with health checks and resource limits
+- **clamav-deployment.yaml** - ClamAV service deployment
+- **configmap.yaml** - Environment configuration (ClamAV host, ports, admin credentials)
 
-### Kubernetes Features
+### Deployment Features
 
 - Multi-architecture support (AMD64/ARM64)
-- Liveness and readiness probes
+- Resource requests and limits configured
+- Health probes for high availability
 - ConfigMap-based configuration
-- Secret management for credentials
-- LoadBalancer service for external access
+- Single replica for consistency
+- LoadBalancer for external access
 
-## Security Modes
+### Monitoring
 
-PearlGuard supports three security modes:
+```bash
+# Check pod status
+kubectl get pods -n pearlguard
 
-### Disabled Mode (Default)
-- Bypasses malware scanning
-- Files are uploaded directly without scanning
-- Maintains logging of uploads with clear "Not Scanned" status
-- Suitable for trusted environments or testing
-- Can be enabled/disabled by administrators only (when admin account is configured)
+# View webapp logs
+kubectl logs deployment/pearlguard-webapp -n pearlguard
 
-### Prevent Mode
-- Blocks and deletes malicious files immediately
-- Notifies users when malware is detected
-- Provides highest security level
-- Files marked as malicious are not stored
+# View ClamAV logs
+kubectl exec deployment/clamav -n pearlguard -- tail -50 /var/log/clamav/clamd.log
 
-### Log Only Mode
-- Allows all file uploads
-- Logs and marks malicious files
-- Warns users about detected threats
-- Useful for testing and monitoring
+# Check scanner logs via API
+curl http://10.10.21.202/api/scanner-logs
+```
+
+## API Endpoints
+
+PearlGuard provides a comprehensive RESTful API with Basic Authentication.
+
+### File Operations
+- `POST /api/upload` - Upload and scan files
+- `GET /api/scan-results` - Retrieve scan history
+- `GET /api/scanner-logs` - Get detailed scanner logs with 8 sections
+
+### S3 Object Storage
+- `POST /api/s3/buckets` - List S3 buckets (requires AWS credentials)
+- `POST /api/s3/objects` - List objects in a bucket
+- `POST /api/s3/scan` - Scan an S3 object
+
+### System
+- `GET /api/health` - System health check
+- `GET /api/clamav-logs` - ClamAV service logs information
+
+### Authentication
+All API endpoints require Basic Authentication:
+```bash
+curl -u admin:admin123 http://localhost:3000/api/scanner-logs
+```
+
+### S3 API Example
+
+```bash
+# List buckets
+curl -u admin:admin123 -X POST http://localhost:3000/api/s3/buckets \
+  -H "Content-Type: application/json" \
+  -d '{
+    "region": "us-east-1",
+    "accessKeyId": "YOUR_ACCESS_KEY",
+    "secretAccessKey": "YOUR_SECRET_KEY"
+  }'
+
+# Scan an object
+curl -u admin:admin123 -X POST http://localhost:3000/api/s3/scan \
+  -H "Content-Type: application/json" \
+  -d '{
+    "region": "us-east-1",
+    "bucket": "my-bucket",
+    "key": "path/to/file.pdf",
+    "accessKeyId": "YOUR_ACCESS_KEY",
+    "secretAccessKey": "YOUR_SECRET_KEY"
+  }'
+```
+
+## Testing
+
+### EICAR Test File
+
+Test malware detection with the EICAR test file:
+
+```bash
+# Download EICAR test file
+wget https://secure.eicar.org/eicar.com
+
+# Upload to PearlGuard
+curl -u admin:admin123 -F "file=@eicar.com" http://localhost:3000/api/upload
+
+# Expected result: Malware detected - Eicar-Signature
+```
+
+### S3 Testing
+
+1. Upload test files to S3 (including EICAR for malware testing)
+2. Navigate to Object Storage page
+3. Connect with AWS credentials
+4. Select and scan objects
+5. Verify results in scan history
+
+## Performance
+
+Typical scan times for S3 objects (<1MB):
+- **S3 Download**: 90-110ms (90-95% of total time)
+- **Buffer Conversion**: 0-1ms (<1% of total time)
+- **ClamAV Scan**: 3-14ms (3-11% of total time)
+- **Total**: 98-127ms
+
+Network latency to AWS is the primary factor affecting scan time.
 
 ## Authentication
 

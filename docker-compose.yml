@@ -34,7 +34,7 @@ services:
       - USER_PASSWORD=user123
       - SESSION_SECRET=pearlguard-secret-change-in-production
     volumes:
-      - ./uploads:/app/uploads
+      - uploads-data:/app/uploads
     depends_on:
       clamav:
         condition: service_healthy
@@ -44,6 +44,7 @@ services:
 
 volumes:
   clamav-data:
+  uploads-data:
 
 networks:
   pearlguard-network:

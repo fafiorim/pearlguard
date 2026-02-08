@@ -298,8 +298,8 @@
                     },
                     body: JSON.stringify({
                         region,
-                        awsAccessKey,
-                        awsSecretKey
+                        accessKeyId: awsAccessKey,
+                        secretAccessKey: awsSecretKey
                     })
                 });
 
@@ -370,8 +370,8 @@
                         region,
                         bucket,
                         prefix,
-                        awsAccessKey,
-                        awsSecretKey
+                        accessKeyId: awsAccessKey,
+                        secretAccessKey: awsSecretKey
                     })
                 });
 
@@ -532,7 +532,7 @@
                         'Content-Type': 'application/json',
                         'Authorization': 'Basic ' + btoa(username + ':' + password)
                     },
-                    body: JSON.stringify({ region, bucket: bucketName, prefix: '', awsAccessKey, awsSecretKey, recursive: true })
+                    body: JSON.stringify({ region, bucket: bucketName, prefix: '', accessKeyId: awsAccessKey, secretAccessKey: awsSecretKey, recursive: true })
                 });
                 
                 if (!response.ok) throw new Error(await response.text());
@@ -574,7 +574,7 @@
                         'Content-Type': 'application/json',
                         'Authorization': 'Basic ' + btoa(username + ':' + password)
                     },
-                    body: JSON.stringify({ region, bucket, prefix, awsAccessKey, awsSecretKey, recursive: true })
+                    body: JSON.stringify({ region, bucket, prefix, accessKeyId: awsAccessKey, secretAccessKey: awsSecretKey, recursive: true })
                 });
                 
                 if (!response.ok) throw new Error(await response.text());
@@ -631,8 +631,8 @@
                             region,
                             bucket: selectedBucket,
                             key: obj.key,
-                            awsAccessKey,
-                            awsSecretKey,
+                            accessKeyId: awsAccessKey,
+                            secretAccessKey: awsSecretKey,
                             tags: ['source:s3', 'bucket:' + selectedBucket]
                         })
                     });
@@ -664,33 +664,12 @@
             
             results.forEach(result => {
                 if (result.success) {
-                    const scanResult = JSON.parse(result.data.scanResult);
-                    console.log('Scan result for', result.key, ':', scanResult);
+                    const data = result.data;
+                    console.log('Scan result for', result.key, ':', data);
                     
-                    // Determine if the file is clean
-                    let isClean = true;
-                    let malwareList = [];
-                    
-                    // Check for verbose result structure (result.atse.malwareCount)
-                    if (scanResult.result && scanResult.result.atse) {
-                        const malwareCount = scanResult.result.atse.malwareCount || 0;
-                        isClean = malwareCount === 0;
-                        if (scanResult.result.atse.malware && scanResult.result.atse.malware.length > 0) {
-                            malwareList = scanResult.result.atse.malware.map(m => m.name || 'Unknown');
-                        }
-                    }
-                    // Check for standard result structure (scanResult field)
-                    else if (scanResult.scanResult !== undefined) {
-                        isClean = scanResult.scanResult === 0;
-                        if (scanResult.foundMalwares && scanResult.foundMalwares.length > 0) {
-                            malwareList = scanResult.foundMalwares.map(m => m.malwareName);
-                        }
-                    }
-                    // Fallback: check foundMalwares directly
-                    else if (scanResult.foundMalwares && scanResult.foundMalwares.length > 0) {
-                        isClean = false;
-                        malwareList = scanResult.foundMalwares.map(m => m.malwareName);
-                    }
+                    // Use the direct API response (isSafe, foundMalwares)
+                    const isClean = data.isSafe;
+                    const malwareList = (data.foundMalwares || []).map(m => m.malwareName);
                     
                     console.log('isClean =', isClean, 'malwareList =', malwareList);
                     const className = isClean ? 'clean' : 'malware';
@@ -698,8 +677,10 @@
                     html += `
                         <div class="s3-scan-result ${className}" style="margin-bottom: 1rem;">
                             <h4>${isClean ? '✓ Clean' : '⚠ Malware Detected'}: ${result.key.split('/').pop()}</h4>
-                            <p><strong>Object:</strong> s3://${result.data.bucket}/${result.data.key}</p>
-                            <p><strong>Scan ID:</strong> ${scanResult.scanId || 'N/A'}</p>
+                            <p><strong>Object:</strong> s3://${data.bucket}/${data.key}</p>
+                            <p><strong>Size:</strong> ${formatFileSize(data.fileSize)}</p>
+                            <p><strong>Scan ID:</strong> ${data.scanId || 'N/A'}</p>
+                            <p><strong>Duration:</strong> ${data.timingBreakdown.total}</p>
                     `;
 
                     if (!isClean && malwareList.length > 0) {
