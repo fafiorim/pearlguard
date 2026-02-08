@@ -49,6 +49,89 @@ PearlGuard is a specialized malware scanner designed for financial institutions,
 - **File statistics** - Size, MIME type, timestamps for compliance
 - **Scan duration tracking** - Performance monitoring and optimization
 
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         External Users                               │
+│                    (Web Browser / API Client)                        │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │ HTTP/HTTPS
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Kubernetes Cluster                                │
+│                                                                       │
+│  ┌────────────────────────────────────────────────────────────┐    │
+│  │              LoadBalancer Service                           │    │
+│  │         pearlguard-service (port 80 → 3000)                │    │
+│  └────────────────────────┬───────────────────────────────────┘    │
+│                           │                                          │
+│  ┌────────────────────────▼───────────────────────────────────┐    │
+│  │            PearlGuard WebApp (v1.0.12)                      │    │
+│  │                                                              │    │
+│  │  ┌──────────────────────────────────────────────────────┐  │    │
+│  │  │  Express.js Server                                   │  │    │
+│  │  │  • Authentication (BasicAuth/Session)                │  │    │
+│  │  │  • File Upload & Management                          │  │    │
+│  │  │  • S3 Integration (AWS SDK)                          │  │    │
+│  │  │  • RESTful API                                       │  │    │
+│  │  │  • Comprehensive Logging                             │  │    │
+│  │  └──────────────────────────────────────────────────────┘  │    │
+│  │                                                              │    │
+│  │  ┌──────────────────────────────────────────────────────┐  │    │
+│  │  │  Web Interface (Static Files)                        │  │    │
+│  │  │  • Dashboard (File Upload)                           │  │    │
+│  │  │  • S3 Object Storage Browser                         │  │    │
+│  │  │  • Scan Results & History                            │  │    │
+│  │  │  • Health Status Monitor                             │  │    │
+│  │  │  • Configuration (Admin)                             │  │    │
+│  │  └──────────────────────────────────────────────────────┘  │    │
+│  └─────────────────┬────────────────────────┬─────────────────┘    │
+│                    │ TCP :3310              │ HTTPS API             │
+│                    │ (INSTREAM)             │                       │
+│  ┌─────────────────▼──────────────┐  ┌──────▼──────────────────┐   │
+│  │     ClamAV Service             │  │   AWS S3                 │   │
+│  │                                │  │   (External)             │   │
+│  │  • Virus Scanning Engine       │  │                          │   │
+│  │  • Signature Database          │  │  • Bucket Listing        │   │
+│  │  • Auto-updates (freshclam)    │  │  • Object Download       │   │
+│  │  • INSTREAM Protocol           │  │  • Region Support        │   │
+│  │  • Official clamav:latest      │  │  • Custom Endpoints      │   │
+│  └────────────────────────────────┘  └─────────────────────────┘   │
+│                                                                       │
+└───────────────────────────────────────────────────────────────────┘
+
+Data Flow:
+──────────
+
+1. File Upload Scan:
+   User → WebApp → ClamAV (INSTREAM) → Scan Result → User
+
+2. S3 Object Scan:
+   User → WebApp → AWS S3 (download) → ClamAV (INSTREAM) → Scan Result → User
+
+3. Health Check:
+   User → WebApp → ClamAV (PING) → Health Status → User
+
+Components:
+───────────
+
+• WebApp Pod      : Node.js Express server (1 replica)
+• ClamAV Pod      : Official ClamAV antivirus service
+• LoadBalancer    : External access to webapp (port 80 → 3000)
+• ConfigMap       : Environment configuration
+• Persistent Data : In-memory scan results (max 100 entries)
+
+Security:
+─────────
+
+• Authentication  : BasicAuth + Session-based
+• Authorization   : Role-based (admin/user)
+• S3 Credentials  : Validated and trimmed before use
+• Scan Isolation  : Buffer-based scanning (in-memory)
+• Audit Logs      : Comprehensive 8-section scanner logs
+```
+
 ## Directory Structure
 ```
 pearlguard/
