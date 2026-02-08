@@ -15,15 +15,15 @@ RUN npm ci --only=production
 COPY clamav-scanner.js ./
 
 # Copy application source
-COPY server.js start.sh ./
+COPY server.js generate-cert.js start.sh ./
 COPY middleware ./middleware
 COPY public ./public
 
 # Make scripts executable
 RUN chmod +x start.sh
 
-# Create uploads and certs directories
-RUN mkdir -p uploads certs
+# Create uploads directory
+RUN mkdir -p uploads
 
 # Expose ports
 EXPOSE 3000 3443

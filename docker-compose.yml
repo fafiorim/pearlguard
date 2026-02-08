@@ -9,11 +9,11 @@ services:
     volumes:
       - clamav-data:/var/lib/clamav
     healthcheck:
-      test: ["CMD", "clamdcheck"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
+      test: ["CMD-SHELL", "clamdscan --ping 1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
     networks:
       - pearlguard-network
