@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+const ClamAVScanner = require('./clamav-scanner');
 const http = require('http');
 const https = require('https');
 const cookieParser = require('cookie-parser');
@@ -23,19 +24,17 @@ const app = express();
 const httpPort = process.env.HTTP_PORT || 3000;
 const httpsPort = process.env.HTTPS_PORT || 3443;
 
+// Initialize ClamAV Scanner
+const clamavHost = process.env.CLAMAV_HOST || 'localhost';
+const clamavPort = parseInt(process.env.CLAMAV_PORT) || 3310;
+const clamavScanner = new ClamAVScanner(clamavHost, clamavPort);
+
 // System Configuration
 let systemConfig = {
     securityMode: process.env.SECURITY_MODE || 'logOnly', // 'prevent', 'logOnly', or 'disabled'
     scanMethod: process.env.SCAN_METHOD || 'buffer', // 'buffer' or 'file'
-    scannerUrl: process.env.SCANNER_URL || 'http://localhost:3001', // Scanner service URL
-    cloudApiKey: process.env.FSS_API_KEY || '', // TrendAI File Security API Key for local scanner
-    externalScannerAddr: process.env.SCANNER_EXTERNAL_ADDR || '', // External gRPC scanner address (e.g., "10.10.21.201:50051")
-    externalScannerTLS: process.env.SCANNER_USE_TLS === 'true', // Use TLS for external scanner
-    digestEnabled: process.env.DIGEST_ENABLED !== 'false', // true or false (default: true)
-    pmlEnabled: process.env.PML_ENABLED === 'true', // Predictive Machine Learning (default: false)
-    spnFeedbackEnabled: process.env.SPN_FEEDBACK_ENABLED === 'true', // SPN Feedback (default: false)
-    verboseEnabled: process.env.VERBOSE_ENABLED === 'true', // Verbose scan result (default: false)
-    activeContentEnabled: process.env.ACTIVE_CONTENT_ENABLED === 'true', // Active content detection (default: false)
+    clamavHost: clamavHost,
+    clamavPort: clamavPort,
 };
 
 // Store scan results in memory
@@ -143,7 +142,7 @@ app.post('/api/upload', (req, res, next) => {
                                 action: 'Uploaded without scanning',
                                 fileStatus: 'Saved',
                                 uploadedBy: req.user.username,
-                                scannerSource: systemConfig.externalScannerAddr ? `External\n${systemConfig.externalScannerAddr}` : 'SaaS SDK'
+                                scannerSource: 'Scanning Disabled'
                             };
                             
                             storeScanResult(scanRecord);
@@ -159,58 +158,36 @@ app.post('/api/upload', (req, res, next) => {
                             continue;
                         }
                         
-                        // Prepare scan request based on method
-                        let scanRequest;
-                        if (systemConfig.scanMethod === 'file') {
-                            // For file method, send only the file path
-                            scanRequest = axios.post(`${systemConfig.scannerUrl}/scan`, '', {
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-Filename': file.originalname,
-                                    'X-Scan-Method': 'file',
-                                    'X-File-Path': filePath,
-                                    'X-Digest-Enabled': systemConfig.digestEnabled.toString(),
-                                    'X-PML-Enabled': systemConfig.pmlEnabled.toString(),
-                                    'X-SPN-Feedback-Enabled': systemConfig.spnFeedbackEnabled.toString(),
-                                    'X-Verbose-Enabled': systemConfig.verboseEnabled.toString(),
-                                    'X-Active-Content-Enabled': systemConfig.activeContentEnabled.toString()
-                                }
-                            });
-                        } else {
-                            // For buffer method, read and send the file data
-                            const fileData = fs.readFileSync(filePath);
-                            scanRequest = axios.post(`${systemConfig.scannerUrl}/scan`, fileData, {
-                                headers: {
-                                    'Content-Type': 'application/octet-stream',
-                                    'X-Filename': file.originalname,
-                                    'X-Scan-Method': 'buffer',
-                                    'X-File-Path': filePath,
-                                    'X-Digest-Enabled': systemConfig.digestEnabled.toString(),
-                                    'X-PML-Enabled': systemConfig.pmlEnabled.toString(),
-                                    'X-SPN-Feedback-Enabled': systemConfig.spnFeedbackEnabled.toString(),
-                                    'X-Verbose-Enabled': systemConfig.verboseEnabled.toString(),
-                                    'X-Active-Content-Enabled': systemConfig.activeContentEnabled.toString()
-                                }
-                            });
-                        }
-                        
+                        // Scan file using ClamAV
+                        let scanResponse;
                         try {
-                            const scanResponse = await scanRequest;
+                            if (systemConfig.scanMethod === 'file') {
+                                // Scan using file path
+                                scanResponse = await clamavScanner.scanFile(filePath);
+                            } else {
+                                // Scan using buffer
+                                const fileData = fs.readFileSync(filePath);
+                                scanResponse = await clamavScanner.scanBuffer(fileData, file.originalname);
+                            }
 
-                            // Use the isSafe field from the scanner response (already properly determined by scanner.go)
-                            const isMalwareFound = !scanResponse.data.isSafe;
+                            // Use the isSafe field from the scanner response
+                            const isMalwareFound = !scanResponse.isSafe;
                             
-                            // Parse the detailed scan result for storage
-                            const scanResult = JSON.parse(scanResponse.data.message);
+                            // Get the detailed scan result
+                            const scanResult = {
+                                fileName: scanResponse.fileName,
+                                scanResult: scanResponse.scanResult,
+                                foundMalwares: scanResponse.foundMalwares || []
+                            };
                             
                             // Store scan result
                             const scanRecord = {
                                 filename: file.originalname,
                                 size: file.size,
                                 mimetype: file.mimetype,
-                                isSafe: scanResponse.data.isSafe,
-                                scanId: scanResponse.data.scanId,
-                                tags: scanResponse.data.tags || [],
+                                isSafe: scanResponse.isSafe,
+                                scanId: scanResponse.scanId,
+                                tags: scanResponse.foundMalwares || [],
                                 timestamp: new Date(),
                                 securityMode: systemConfig.securityMode,
                                 action: isMalwareFound ? 
@@ -219,7 +196,7 @@ app.post('/api/upload', (req, res, next) => {
                                 fileStatus: isMalwareFound && systemConfig.securityMode === 'prevent' ? 'Deleted' : 'Saved',
                                 uploadedBy: req.user.username,
                                 scanDetails: scanResult,
-                                scannerSource: systemConfig.externalScannerAddr ? `External\n${systemConfig.externalScannerAddr}` : 'SaaS SDK'
+                                scannerSource: `ClamAV\n${systemConfig.clamavHost}:${systemConfig.clamavPort}`
                             };
                             
                             if (isMalwareFound) {
@@ -231,8 +208,8 @@ app.post('/api/upload', (req, res, next) => {
                                         file: file.originalname,
                                         status: 'error',
                                         error: 'Malware detected - Upload prevented',
-                                        details: scanResponse.data.message,
-                                        scanId: scanResponse.data.scanId
+                                        details: scanResponse.scanResult,
+                                        scanId: scanResponse.scanId
                                     });
                                 } else {
                                     // Log Only mode - keep file but mark as unsafe
@@ -242,7 +219,7 @@ app.post('/api/upload', (req, res, next) => {
                                         status: 'warning',
                                         message: 'File uploaded but marked as unsafe',
                                         warning: 'Malware detected',
-                                        scanResult: scanResponse.data
+                                        scanResult: scanResponse
                                     });
                                 }
                             } else {
@@ -252,7 +229,7 @@ app.post('/api/upload', (req, res, next) => {
                                     file: file.originalname,
                                     status: 'success',
                                     message: 'File uploaded and scanned successfully',
-                                    scanResult: scanResponse.data
+                                    scanResult: scanResponse
                                 });
                             }
 
@@ -350,9 +327,7 @@ app.get('/api/config', combinedAuth, (req, res) => {
 });
 
 app.post('/api/config', combinedAuth, adminAuth, async (req, res) => {
-    const { securityMode, scanMethod, scannerUrl, cloudApiKey, externalScannerAddr, externalScannerTLS, digestEnabled, pmlEnabled, spnFeedbackEnabled, verboseEnabled, activeContentEnabled } = req.body;
-    
-    let needsScannerRestart = false;
+    const { securityMode, scanMethod } = req.body;
     
     if (securityMode && ['prevent', 'logOnly', 'disabled'].includes(securityMode)) {
         systemConfig.securityMode = securityMode;
@@ -362,205 +337,65 @@ app.post('/api/config', combinedAuth, adminAuth, async (req, res) => {
         systemConfig.scanMethod = scanMethod;
     }
     
-    if (scannerUrl && typeof scannerUrl === 'string') {
-        // Validate URL format
-        try {
-            new URL(scannerUrl);
-            systemConfig.scannerUrl = scannerUrl.replace(/\/$/, ''); // Remove trailing slash
-        } catch (e) {
-            return res.status(400).json({ error: 'Invalid scanner URL format' });
-        }
-    }
-    
-    // Handle SaaS SDK API Key configuration
-    if (typeof cloudApiKey === 'string') {
-        if (systemConfig.cloudApiKey !== cloudApiKey) {
-            systemConfig.cloudApiKey = cloudApiKey.trim();
-            needsScannerRestart = true;
-        }
-    }
-    
-    // Handle external scanner configuration
-    if (typeof externalScannerAddr === 'string') {
-        if (systemConfig.externalScannerAddr !== externalScannerAddr) {
-            systemConfig.externalScannerAddr = externalScannerAddr.trim();
-            needsScannerRestart = true;
-        }
-    }
-    
-    if (typeof externalScannerTLS === 'boolean') {
-        if (systemConfig.externalScannerTLS !== externalScannerTLS) {
-            systemConfig.externalScannerTLS = externalScannerTLS;
-            needsScannerRestart = true;
-        }
-    }
-    
-    if (typeof digestEnabled === 'boolean') {
-        systemConfig.digestEnabled = digestEnabled;
-    }
-    
-    if (typeof pmlEnabled === 'boolean') {
-        systemConfig.pmlEnabled = pmlEnabled;
-    }
-    
-    if (typeof spnFeedbackEnabled === 'boolean') {
-        systemConfig.spnFeedbackEnabled = spnFeedbackEnabled;
-    }
-    
-    if (typeof verboseEnabled === 'boolean') {
-        systemConfig.verboseEnabled = verboseEnabled;
-    }
-    
-    if (typeof activeContentEnabled === 'boolean') {
-        systemConfig.activeContentEnabled = activeContentEnabled;
-    }
-    
-    // If external scanner config changed, restart scanner process
-    if (needsScannerRestart) {
-        const { spawn } = require('child_process');
-        
-        // Kill existing scanner process (if any)
-        try {
-            require('child_process').execSync('pkill -f "./scanner"');
-        } catch (e) {
-            // Process might not be running
-        }
-        
-        // Start new scanner with updated environment
-        const scannerEnv = {
-            ...process.env,
-            FSS_API_KEY: systemConfig.cloudApiKey,
-            SCANNER_EXTERNAL_ADDR: systemConfig.externalScannerAddr,
-            SCANNER_USE_TLS: systemConfig.externalScannerTLS.toString()
-        };
-        
-        const scanner = spawn('./scanner', [], {
-            env: scannerEnv,
-            detached: true,
-            stdio: 'ignore'
-        });
-        scanner.unref();
-        
-        // Wait a moment for scanner to start
-        await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-    
-    res.json({ message: 'Configuration updated', config: systemConfig });
+    res.json({ 
+        success: true, 
+        message: 'Configuration updated successfully',
+        config: systemConfig
+    });
 });
 
-// Test external scanner connection
+// Test ClamAV scanner connection
 app.post('/api/test-scanner', combinedAuth, adminAuth, async (req, res) => {
-    const { externalScannerAddr, externalScannerTLS } = req.body;
-    
-    if (!externalScannerAddr || typeof externalScannerAddr !== 'string') {
-        return res.status(400).json({ 
-            success: false, 
-            message: 'External scanner address is required' 
-        });
-    }
-    
-    // Validate address format (host:port)
-    const addrRegex = /^[\w\.-]+:\d+$/;
-    if (!addrRegex.test(externalScannerAddr)) {
-        return res.status(400).json({ 
-            success: false, 
-            message: 'Invalid address format. Use host:port (e.g., 10.10.21.201:50051)' 
-        });
-    }
-    
     try {
-        // Try to connect to the scanner by making a health check request
-        // We'll spawn a temporary scanner process to test the connection
-        const { spawn } = require('child_process');
-        const testEnv = {
-            ...process.env,
-            SCANNER_EXTERNAL_ADDR: externalScannerAddr,
-            SCANNER_USE_TLS: (externalScannerTLS === true).toString(),
-            FSS_API_KEY: '' // Clear API key for external scanner test
-        };
+        // Test ClamAV connection with ping
+        const pingResult = await clamavScanner.ping();
         
-        // Create a test by checking if we can reach the scanner's health endpoint
-        // For gRPC scanners, we'll try to initialize a client
-        const testProcess = spawn('./scanner', [], {
-            env: testEnv,
-            timeout: 5000
-        });
-        
-        let output = '';
-        let errorOutput = '';
-        
-        testProcess.stdout.on('data', (data) => {
-            output += data.toString();
-        });
-        
-        testProcess.stderr.on('data', (data) => {
-            errorOutput += data.toString();
-        });
-        
-        const testResult = await new Promise((resolve) => {
-            const timeout = setTimeout(() => {
-                testProcess.kill();
-                resolve({ success: false, message: 'Connection timeout after 5 seconds' });
-            }, 5000);
+        if (pingResult) {
+            // Get version info
+            const version = await clamavScanner.getVersion();
             
-            testProcess.on('error', (err) => {
-                clearTimeout(timeout);
-                resolve({ success: false, message: `Connection error: ${err.message}` });
-            });
-            
-            testProcess.on('exit', (code) => {
-                clearTimeout(timeout);
-                
-                // Check if connection was successful by looking at logs
-                if (output.includes('Scanner started in External Scanner mode') || 
-                    output.includes('Scanner Service Starting')) {
-                    resolve({ 
-                        success: true, 
-                        message: `Successfully connected to external scanner at ${externalScannerAddr}` 
-                    });
-                } else if (errorOutput.includes('connection refused') || 
-                           errorOutput.includes('no such host') ||
-                           errorOutput.includes('timeout')) {
-                    resolve({ 
-                        success: false, 
-                        message: `Cannot reach scanner at ${externalScannerAddr}. Check network connectivity.` 
-                    });
-                } else if (errorOutput) {
-                    resolve({ 
-                        success: false, 
-                        message: `Connection error: ${errorOutput.substring(0, 200)}` 
-                    });
-                } else {
-                    resolve({ 
-                        success: true, 
-                        message: `Scanner process started successfully for ${externalScannerAddr}` 
-                    });
+            res.json({
+                success: true,
+                message: 'ClamAV scanner is accessible',
+                scanner: {
+                    host: systemConfig.clamavHost,
+                    port: systemConfig.clamavPort,
+                    version: version
                 }
             });
-        });
-        
-        res.json(testResult);
-        
+        } else {
+            res.json({
+                success: false,
+                message: 'ClamAV scanner did not respond'
+            });
+        }
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            message: `Test failed: ${error.message}` 
+        res.json({
+            success: false,
+            message: `Connection error: ${error.message}`
         });
     }
 });
+
 
 app.get('/api/health', basicAuth, async (req, res) => {
     let scannerStatus = 'unknown';
     let scannerError = null;
+    let scannerVersion = null;
     
     // Check if scanner service is accessible
     if (systemConfig.securityMode !== 'disabled') {
         try {
-            const scannerResponse = await axios.get(`${systemConfig.scannerUrl}/health`, { timeout: 2000 });
-            scannerStatus = scannerResponse.data.status || 'healthy';
+            const pingResponse = await clamavScanner.ping();
+            scannerStatus = pingResponse ? 'healthy' : 'unhealthy';
+            
+            // Get scanner version if healthy
+            if (scannerStatus === 'healthy') {
+                scannerVersion = await clamavScanner.getVersion();
+            }
         } catch (error) {
             scannerStatus = 'unhealthy';
-            scannerError = error.code === 'ECONNREFUSED' ? 'Scanner service not responding' : error.message;
+            scannerError = error.message || 'ClamAV service not responding';
         }
     } else {
         scannerStatus = 'disabled';
@@ -577,7 +412,9 @@ app.get('/api/health', basicAuth, async (req, res) => {
             webServer: 'healthy',
             scanner: {
                 status: scannerStatus,
-                error: scannerError
+                error: scannerError,
+                version: scannerVersion,
+                host: `${systemConfig.clamavHost}:${systemConfig.clamavPort}`
             }
         },
         scanResults: {
